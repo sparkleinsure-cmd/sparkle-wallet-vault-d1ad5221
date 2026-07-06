@@ -87,9 +87,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "apple-mobile-web-app-title", content: "Sparkle Insure" },
       { property: "og:title", content: "Sparkle Insure — Your Modern Financial Wallet" },
-      { property: "og:description", content: "Secure multi-currency wallet with deposits, withdrawals, and instant statements." },
+      { property: "og:description", content: "Sparkle Insure is a secure multi-currency digital wallet: deposit, withdraw and manage your money with a premium banking experience." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Sparkle Insure — Your Modern Financial Wallet" },
+      { name: "twitter:description", content: "Sparkle Insure is a secure multi-currency digital wallet: deposit, withdraw and manage your money with a premium banking experience." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/0d3854b8-6216-4684-afcb-21bcbe2eaa51" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/0d3854b8-6216-4684-afcb-21bcbe2eaa51" },
     ],
     links: [
       {
