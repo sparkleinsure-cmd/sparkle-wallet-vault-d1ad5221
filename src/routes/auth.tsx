@@ -1,0 +1,245 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { toast } from "sonner";
+import { lovable } from "@/integrations/lovable";
+import { Loader2 } from "lucide-react";
+
+export const Route = createFileRoute("/auth")({
+  head: () => ({
+    meta: [
+      { title: "Sign in — Sparkle Insure" },
+      { name: "description", content: "Sign in or open a Sparkle Insure wallet in minutes." },
+    ],
+  }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    mode: (s.mode === "signup" ? "signup" : "signin") as "signup" | "signin",
+  }),
+  component: AuthPage,
+});
+
+const signupSchema = z.object({
+  firstName: z.string().trim().min(1).max(60),
+  surname: z.string().trim().min(1).max(60),
+  email: z.string().trim().email().max(200),
+  phone: z.string().trim().min(6).max(30),
+  password: z.string().min(8).max(72),
+});
+
+function AuthPage() {
+  const { mode } = Route.useSearch();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<"signin" | "signup">(mode);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/dashboard" });
+    });
+  }, [navigate]);
+
+  return (
+    <div className="grid min-h-screen md:grid-cols-2">
+      <div className="relative hidden overflow-hidden md:block">
+        <div className="absolute inset-0 gradient-brand" />
+        <div className="relative flex h-full flex-col justify-between p-12 text-white">
+          <Link to="/" className="flex items-center gap-3">
+            <img src="/logo.png" alt="" className="h-10 w-10 rounded-xl bg-white/10 p-1" />
+            <span className="font-display text-lg font-bold">Sparkle Insure</span>
+          </Link>
+          <div>
+            <h2 className="font-display text-4xl font-bold leading-tight">
+              Your money, insured and always in reach.
+            </h2>
+            <p className="mt-4 max-w-md text-white/80">
+              Join thousands using Sparkle Insure to save, spend and move funds across Africa
+              with the safety of bank-grade security.
+            </p>
+          </div>
+          <span className="text-xs text-white/60">© {new Date().getFullYear()} Sparkle Insure</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-center p-6">
+        <Card className="glass-card w-full max-w-md rounded-3xl p-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="font-display text-2xl font-bold">
+              {tab === "signin" ? "Welcome back" : "Open your wallet"}
+            </h1>
+            <div className="flex rounded-full border border-border p-1 text-xs">
+              <button
+                onClick={() => setTab("signin")}
+                className={`rounded-full px-3 py-1 ${tab === "signin" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              >
+                Sign in
+              </button>
+              <button
+                onClick={() => setTab("signup")}
+                className={`rounded-full px-3 py-1 ${tab === "signup" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              >
+                Sign up
+              </button>
+            </div>
+          </div>
+          {tab === "signin" ? <SignInForm /> : <SignUpForm />}
+          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={async () => {
+              const r = await lovable.auth.signInWithOAuth("google", {
+                redirect_uri: window.location.origin,
+              });
+              if (r.error) toast.error(r.error.message);
+            }}
+          >
+            Continue with Google
+          </Button>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SignInForm() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        setLoading(false);
+        if (error) return toast.error(error.message);
+        toast.success("Welcome back!");
+        navigate({ to: "/dashboard" });
+      }}
+    >
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="password">Password</Label>
+        <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      </div>
+      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign in
+      </Button>
+    </form>
+  );
+}
+
+function SignUpForm() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    firstName: "",
+    surname: "",
+    email: "",
+    phone: "",
+    password: "",
+  });
+  const [proof, setProof] = useState<File | null>(null);
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const parse = signupSchema.safeParse(form);
+        if (!parse.success) return toast.error(parse.error.issues[0].message);
+        if (!proof) return toast.error("Please upload your proof of banking details.");
+        if (proof.size > 5 * 1024 * 1024) return toast.error("File must be under 5MB.");
+
+        setLoading(true);
+        const { data, error } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: {
+              first_name: form.firstName,
+              surname: form.surname,
+              phone: form.phone,
+              primary_currency: "ZAR",
+            },
+          },
+        });
+        if (error || !data.user) {
+          setLoading(false);
+          return toast.error(error?.message ?? "Signup failed");
+        }
+
+        // Wait briefly for session (auto-confirm is on)
+        let session = (await supabase.auth.getSession()).data.session;
+        if (!session) {
+          const login = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          });
+          session = login.data.session;
+        }
+        if (session) {
+          const path = `${data.user.id}/${Date.now()}-${proof.name}`;
+          const up = await supabase.storage.from("kyc").upload(path, proof, { upsert: true });
+          if (up.error) {
+            toast.error(`Proof upload failed: ${up.error.message}`);
+          } else {
+            await supabase.from("profiles").update({ proof_url: path }).eq("id", data.user.id);
+          }
+        }
+        setLoading(false);
+        toast.success("Account created! Let's verify you.");
+        navigate({ to: "/verify" });
+      }}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="fn">First name</Label>
+          <Input id="fn" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+        </div>
+        <div>
+          <Label htmlFor="sn">Surname</Label>
+          <Input id="sn" required value={form.surname} onChange={(e) => setForm({ ...form, surname: e.target.value })} />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="em">Email</Label>
+        <Input id="em" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </div>
+      <div>
+        <Label htmlFor="ph">Phone number</Label>
+        <Input id="ph" required placeholder="+27 82 000 0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+      </div>
+      <div>
+        <Label htmlFor="pw">Password</Label>
+        <Input id="pw" type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+      </div>
+      <div>
+        <Label htmlFor="proof">Proof of banking details</Label>
+        <Input
+          id="proof"
+          type="file"
+          accept="image/*,application/pdf"
+          required
+          onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">PDF, PNG or JPG up to 5MB.</p>
+      </div>
+      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create account
+      </Button>
+    </form>
+  );
+}
