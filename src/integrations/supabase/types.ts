@@ -87,6 +87,7 @@ export type Database = {
           currency: string
           description: string | null
           id: string
+          proof_url: string | null
           reference: string | null
           status: Database["public"]["Enums"]["tx_status"]
           type: Database["public"]["Enums"]["tx_type"]
@@ -98,6 +99,7 @@ export type Database = {
           currency: string
           description?: string | null
           id?: string
+          proof_url?: string | null
           reference?: string | null
           status?: Database["public"]["Enums"]["tx_status"]
           type: Database["public"]["Enums"]["tx_type"]
@@ -109,6 +111,7 @@ export type Database = {
           currency?: string
           description?: string | null
           id?: string
+          proof_url?: string | null
           reference?: string | null
           status?: Database["public"]["Enums"]["tx_status"]
           type?: Database["public"]["Enums"]["tx_type"]
@@ -176,7 +179,7 @@ export type Database = {
       app_role: "admin" | "user"
       kyc_status: "pending" | "verified" | "rejected"
       tx_status: "pending" | "completed" | "failed"
-      tx_type: "deposit" | "withdrawal" | "bonus"
+      tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -307,7 +310,7 @@ export const Constants = {
       app_role: ["admin", "user"],
       kyc_status: ["pending", "verified", "rejected"],
       tx_status: ["pending", "completed", "failed"],
-      tx_type: ["deposit", "withdrawal", "bonus"],
+      tx_type: ["deposit", "withdrawal", "bonus", "adjustment"],
     },
   },
 } as const
