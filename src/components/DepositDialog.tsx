@@ -10,89 +10,86 @@ import { useServerFn } from "@tanstack/react-start";
 import { creditDeposit } from "@/lib/wallet.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Upload } from "lucide-react";
 
-// Replace with real Paystack public key for live payments.
-const PAYSTACK_PUBLIC_KEY =
-  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-
-declare global {
-  interface Window {
-    PaystackPop?: {
-      setup: (opts: {
-        key: string;
-        email: string;
-        amount: number;
-        currency: string;
-        ref?: string;
-        callback: (r: { reference: string }) => void;
-        onClose?: () => void;
-      }) => { openIframe: () => void };
-    };
-  }
-}
+const BANK = {
+  name: "FNB (First National Bank)",
+  account: "6264854525",
+  branch: "250655",
+};
 
 export function DepositDialog({
   open,
   onOpenChange,
   defaultCurrency,
-  email,
+  accountId,
+  userId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   defaultCurrency: Currency;
-  email: string;
+  accountId: string;
+  userId: string;
 }) {
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
   const [amount, setAmount] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const credit = useServerFn(creditDeposit);
   const qc = useQueryClient();
 
+  const reference = accountId;
+  const copy = (v: string, label: string) => {
+    navigator.clipboard.writeText(v);
+    toast.success(`${label} copied`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Deposit to your wallet</DialogTitle>
           <DialogDescription>
-            Fund your Sparkle Insure wallet securely via Paystack. Choose your currency and amount below.
+            Make an EFT/bank deposit to the account below, then upload your proof of payment.
+            Your balance updates instantly once your receipt is uploaded — the admin will verify shortly.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-2 rounded-xl border border-border/60 bg-muted/40 p-4 text-sm">
+          <Row label="Bank" value={BANK.name} />
+          <Row label="Account number" value={BANK.account} onCopy={() => copy(BANK.account, "Account number")} />
+          <Row label="Branch code" value={BANK.branch} onCopy={() => copy(BANK.branch, "Branch code")} />
+          <Row label="Reference" value={reference} onCopy={() => copy(reference, "Reference")} highlight />
+        </div>
+
         <form
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
             const amt = Number(amount);
             if (!isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount");
-            if (!window.PaystackPop) return toast.error("Paystack SDK not loaded yet — try again.");
+            if (!file) return toast.error("Please upload your proof of payment");
+            if (file.size > 10 * 1024 * 1024) return toast.error("File must be under 10MB");
             setLoading(true);
-
-            const handler = window.PaystackPop.setup({
-              key: PAYSTACK_PUBLIC_KEY,
-              email,
-              amount: Math.round(amt * 100), // minor units
-              currency,
-              ref: `SI-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              callback: (r) => {
-                (async () => {
-                  try {
-                    await credit({ data: { amount: amt, currency, reference: r.reference } });
-                    toast.success(`Deposit successful — ${currency} ${amt.toFixed(2)} credited.`);
-                    await qc.invalidateQueries();
-                    onOpenChange(false);
-                  } catch (err: any) {
-                    toast.error(err.message);
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
-              },
-              onClose: () => {
-                setLoading(false);
-                toast.info("Payment window closed.");
-              },
-            });
-            handler.openIframe();
+            try {
+              const ref = `POP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+              const ext = file.name.split(".").pop() || "bin";
+              const path = `${userId}/${ref}.${ext}`;
+              const up = await supabase.storage.from("deposits").upload(path, file, {
+                contentType: file.type || "application/octet-stream",
+                upsert: false,
+              });
+              if (up.error) throw up.error;
+              await credit({ data: { amount: amt, currency, reference: ref, proofUrl: path } });
+              toast.success(`Deposit recorded — ${currency} ${amt.toFixed(2)} added. Pending admin verification.`);
+              await qc.invalidateQueries();
+              setAmount(""); setFile(null);
+              onOpenChange(false);
+            } catch (err: any) {
+              toast.error(err.message ?? "Upload failed");
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           <div className="grid grid-cols-3 gap-3">
@@ -108,18 +105,50 @@ export function DepositDialog({
               </Select>
             </div>
             <div className="col-span-2">
-              <Label htmlFor="amt">Amount</Label>
+              <Label htmlFor="amt">Amount deposited</Label>
               <Input id="amt" type="number" min="0" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
             </div>
           </div>
+
+          <div>
+            <Label htmlFor="pop">Proof of payment (image or PDF)</Label>
+            <label htmlFor="pop" className="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-background/40 p-4 text-sm text-muted-foreground hover:bg-muted/40">
+              <Upload className="h-4 w-4" />
+              {file ? file.name : "Click to select receipt (max 10MB)"}
+            </label>
+            <input
+              id="pop"
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+
           <Button type="submit" className="w-full gradient-brand text-white" disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Pay with Paystack
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit deposit
           </Button>
           <p className="text-center text-[11px] text-muted-foreground">
-            Test mode. Use Paystack test cards (e.g. 4084 0840 8408 4081).
+            Your funds appear immediately. An admin verifies your receipt and can adjust the amount if it differs.
           </p>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Row({ label, value, onCopy, highlight }: { label: string; value: string; onCopy?: () => void; highlight?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className={`font-mono ${highlight ? "font-bold text-primary" : ""}`}>{value}</span>
+        {onCopy && (
+          <button type="button" onClick={onCopy} className="rounded p-1 hover:bg-muted">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

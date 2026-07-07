@@ -39,12 +39,13 @@ export const setPrimaryCurrency = createServerFn({ method: "POST" })
 
 export const creditDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { amount: number; currency: string; reference: string }) =>
+  .inputValidator((d: { amount: number; currency: string; reference: string; proofUrl: string }) =>
     z
       .object({
         amount: z.number().positive().max(10_000_000),
         currency: z.enum(CURRENCIES),
         reference: z.string().min(3).max(200),
+        proofUrl: z.string().min(3).max(500),
       })
       .parse(d),
   )
@@ -81,9 +82,10 @@ export const creditDeposit = createServerFn({ method: "POST" })
       type: "deposit",
       currency: data.currency,
       amount: data.amount,
-      status: "completed",
+      status: "pending",
       reference: data.reference,
-      description: `Paystack deposit`,
+      description: `Bank deposit — awaiting admin verification`,
+      proof_url: data.proofUrl,
     });
     if (tx.error) throw new Error(tx.error.message);
     return { ok: true, balance: next };

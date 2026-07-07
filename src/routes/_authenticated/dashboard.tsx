@@ -98,7 +98,7 @@ function DashboardPage() {
         <TransactionsTable transactions={data.transactions as any} />
       </main>
 
-      <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} email={profile.email} />
+      <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />
       <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} />
       <StatementDialog
         open={sOpen}

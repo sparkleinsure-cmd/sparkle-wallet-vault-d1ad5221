@@ -2,7 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "@/lib/wallet.functions";
-import { adminLookupUser, adminCreditBonus, adminSeedDemo } from "@/lib/admin.functions";
+import {
+  adminLookupUser,
+  adminCreditBonus,
+  adminSeedDemo,
+  adminListPendingDeposits,
+  adminGetProofUrl,
+  adminVerifyDeposit,
+} from "@/lib/admin.functions";
 import { AppHeader } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
@@ -24,9 +31,17 @@ function AdminPage() {
   const lookup = useServerFn(adminLookupUser);
   const credit = useServerFn(adminCreditBonus);
   const seed = useServerFn(adminSeedDemo);
+  const listPending = useServerFn(adminListPendingDeposits);
+  const getProof = useServerFn(adminGetProofUrl);
+  const verifyDep = useServerFn(adminVerifyDeposit);
   const navigate = useNavigate();
 
   const { data: me, isLoading } = useQuery({ queryKey: ["me"], queryFn: () => fetchMe() });
+  const { data: pending, refetch: refetchPending } = useQuery({
+    queryKey: ["admin-pending-deposits"],
+    queryFn: () => listPending(),
+    enabled: !!me?.roles.includes("admin"),
+  });
 
   useEffect(() => {
     if (me && !me.roles.includes("admin")) navigate({ to: "/dashboard" });
@@ -67,6 +82,43 @@ function AdminPage() {
             <Database className="mr-2 h-4 w-4" /> Seed demo users
           </Button>
         </div>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-4 font-display text-lg font-semibold">
+            Pending deposit verifications
+            {pending?.deposits.length ? (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                {pending.deposits.length}
+              </span>
+            ) : null}
+          </h2>
+          {!pending?.deposits.length ? (
+            <p className="text-sm text-muted-foreground">No pending deposits.</p>
+          ) : (
+            <div className="space-y-3">
+              {pending.deposits.map((d: any) => (
+                <PendingDepositRow
+                  key={d.id}
+                  deposit={d}
+                  onDownload={async () => {
+                    if (!d.proof_url) return toast.error("No proof attached");
+                    try {
+                      const { url } = await getProof({ data: { path: d.proof_url } });
+                      window.open(url, "_blank");
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                  onVerify={async (correctedAmount: number | undefined, note: string | undefined) => {
+                    try {
+                      await verifyDep({ data: { txId: d.id, correctedAmount, note } });
+                      toast.success("Deposit verified");
+                      refetchPending();
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-4 font-display text-lg font-semibold">Lookup by Account ID</h2>
@@ -163,6 +215,70 @@ function AdminPage() {
           </Card>
         )}
       </main>
+    </div>
+  );
+}
+
+function PendingDepositRow({
+  deposit,
+  onDownload,
+  onVerify,
+}: {
+  deposit: any;
+  onDownload: () => void;
+  onVerify: (correctedAmount: number | undefined, note: string | undefined) => void;
+}) {
+  const [corrected, setCorrected] = useState<string>("");
+  const [note, setNote] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const p = deposit.profiles;
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-display text-base font-semibold">
+            {p?.first_name} {p?.surname}{" "}
+            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{p?.account_id}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {p?.email} · Ref {deposit.reference} · {new Date(deposit.created_at).toLocaleString()}
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-primary">
+            {formatMoney(Number(deposit.amount), deposit.currency as Currency)}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">(user-declared)</span>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={onDownload}>
+          <FileDown className="mr-2 h-4 w-4" /> Download proof
+        </Button>
+      </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-[160px_1fr_auto]">
+        <div>
+          <Label className="text-xs">Corrected amount (optional)</Label>
+          <Input type="number" step="0.01" min="0" placeholder={String(deposit.amount)} value={corrected} onChange={(e) => setCorrected(e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-xs">Note</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500" />
+        </div>
+        <div className="flex items-end">
+          <Button
+            size="sm"
+            className="gradient-brand text-white"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const c = corrected.trim() ? Number(corrected) : undefined;
+              if (c !== undefined && (!isFinite(c) || c <= 0)) { toast.error("Invalid amount"); setBusy(false); return; }
+              await onVerify(c, note.trim() || undefined);
+              setBusy(false);
+            }}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
