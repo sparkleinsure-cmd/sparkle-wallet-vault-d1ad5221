@@ -160,13 +160,23 @@ export const adminListPendingDeposits = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const txs = await supabaseAdmin
       .from("transactions")
-      .select("*, profiles:profiles!inner(account_id, first_name, surname, email)")
+      .select("*")
       .eq("type", "deposit")
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(100);
     if (txs.error) throw new Error(txs.error.message);
-    return { deposits: txs.data ?? [] };
+    const userIds = Array.from(new Set((txs.data ?? []).map((t) => t.user_id)));
+    let profilesById: Record<string, any> = {};
+    if (userIds.length) {
+      const p = await supabaseAdmin
+        .from("profiles")
+        .select("id, account_id, first_name, surname, email")
+        .in("id", userIds);
+      profilesById = Object.fromEntries((p.data ?? []).map((x) => [x.id, x]));
+    }
+    const deposits = (txs.data ?? []).map((t) => ({ ...t, profiles: profilesById[t.user_id] ?? null }));
+    return { deposits };
   });
 
 export const adminGetProofUrl = createServerFn({ method: "POST" })
