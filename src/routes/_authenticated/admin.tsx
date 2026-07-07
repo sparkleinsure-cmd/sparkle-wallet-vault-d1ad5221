@@ -107,7 +107,7 @@ function AdminPage() {
                       window.open(url, "_blank");
                     } catch (e: any) { toast.error(e.message); }
                   }}
-                  onVerify={async (correctedAmount, note) => {
+                  onVerify={async (correctedAmount: number | undefined, note: string | undefined) => {
                     try {
                       await verifyDep({ data: { txId: d.id, correctedAmount, note } });
                       toast.success("Deposit verified");
@@ -215,6 +215,70 @@ function AdminPage() {
           </Card>
         )}
       </main>
+    </div>
+  );
+}
+
+function PendingDepositRow({
+  deposit,
+  onDownload,
+  onVerify,
+}: {
+  deposit: any;
+  onDownload: () => void;
+  onVerify: (correctedAmount: number | undefined, note: string | undefined) => void;
+}) {
+  const [corrected, setCorrected] = useState<string>("");
+  const [note, setNote] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const p = deposit.profiles;
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-display text-base font-semibold">
+            {p?.first_name} {p?.surname}{" "}
+            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{p?.account_id}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {p?.email} · Ref {deposit.reference} · {new Date(deposit.created_at).toLocaleString()}
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-primary">
+            {formatMoney(Number(deposit.amount), deposit.currency as Currency)}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">(user-declared)</span>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={onDownload}>
+          <FileDown className="mr-2 h-4 w-4" /> Download proof
+        </Button>
+      </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-[160px_1fr_auto]">
+        <div>
+          <Label className="text-xs">Corrected amount (optional)</Label>
+          <Input type="number" step="0.01" min="0" placeholder={String(deposit.amount)} value={corrected} onChange={(e) => setCorrected(e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-xs">Note</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500" />
+        </div>
+        <div className="flex items-end">
+          <Button
+            size="sm"
+            className="gradient-brand text-white"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const c = corrected.trim() ? Number(corrected) : undefined;
+              if (c !== undefined && (!isFinite(c) || c <= 0)) { toast.error("Invalid amount"); setBusy(false); return; }
+              await onVerify(c, note.trim() || undefined);
+              setBusy(false);
+            }}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
