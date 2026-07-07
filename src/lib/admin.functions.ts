@@ -152,3 +152,89 @@ export const adminSeedDemo = createServerFn({ method: "POST" })
     }
     return { ok: true, seeded: count };
   });
+
+export const adminListPendingDeposits = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const txs = await supabaseAdmin
+      .from("transactions")
+      .select("*, profiles:profiles!inner(account_id, first_name, surname, email)")
+      .eq("type", "deposit")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (txs.error) throw new Error(txs.error.message);
+    return { deposits: txs.data ?? [] };
+  });
+
+export const adminGetProofUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { path: string }) => z.object({ path: z.string().min(1).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("deposits")
+      .createSignedUrl(data.path, 300);
+    if (error) throw new Error(error.message);
+    return { url: signed.signedUrl };
+  });
+
+export const adminVerifyDeposit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { txId: string; correctedAmount?: number; note?: string }) =>
+    z.object({
+      txId: z.string().uuid(),
+      correctedAmount: z.number().positive().max(10_000_000).optional(),
+      note: z.string().max(300).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tx = await supabaseAdmin
+      .from("transactions")
+      .select("*")
+      .eq("id", data.txId)
+      .maybeSingle();
+    if (tx.error || !tx.data) throw new Error("Transaction not found");
+    if (tx.data.status !== "pending") throw new Error("Already processed");
+
+    const original = Number(tx.data.amount);
+    const corrected = data.correctedAmount ?? original;
+    const delta = corrected - original;
+
+    // Mark deposit tx completed at original amount, add adjustment tx for delta
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: "completed", description: `Verified by admin${data.note ? ` — ${data.note}` : ""}` })
+      .eq("id", data.txId);
+
+    if (delta !== 0) {
+      const wallet = await supabaseAdmin
+        .from("wallets")
+        .select("balance")
+        .eq("user_id", tx.data.user_id)
+        .eq("currency", tx.data.currency)
+        .maybeSingle();
+      const current = Number(wallet.data?.balance ?? 0);
+      await supabaseAdmin
+        .from("wallets")
+        .update({ balance: current + delta, updated_at: new Date().toISOString() })
+        .eq("user_id", tx.data.user_id)
+        .eq("currency", tx.data.currency);
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: tx.data.user_id,
+        type: "adjustment",
+        currency: tx.data.currency,
+        amount: delta,
+        status: "completed",
+        reference: tx.data.reference,
+        description: `Admin correction on deposit${data.note ? ` — ${data.note}` : ""}`,
+      });
+    }
+    return { ok: true, delta };
+  });
