@@ -1,10 +1,8 @@
-export const CURRENCIES = ["ZAR", "NGN", "GHS", "USD"] as const;
+export const CURRENCIES = ["ZAR", "USD"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
 export const CURRENCY_META: Record<Currency, { symbol: string; name: string; locale: string }> = {
   ZAR: { symbol: "R", name: "South African Rand", locale: "en-ZA" },
-  NGN: { symbol: "₦", name: "Nigerian Naira", locale: "en-NG" },
-  GHS: { symbol: "₵", name: "Ghanaian Cedi", locale: "en-GH" },
   USD: { symbol: "$", name: "US Dollar", locale: "en-US" },
 };
 
