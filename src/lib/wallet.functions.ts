@@ -129,12 +129,13 @@ export const creditDeposit = createServerFn({ method: "POST" })
 
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { amount: number; currency: string; bankDetails?: string }) =>
+  .inputValidator((d: { amount: number; currency: string; bankName?: string; accountNumber?: string }) =>
     z
       .object({
         amount: z.number().positive().max(10_000_000),
         currency: z.enum(CURRENCIES),
-        bankDetails: z.string().max(500).optional(),
+        bankName: z.string().max(200).optional(),
+        accountNumber: z.string().max(100).optional(),
       })
       .parse(d),
   )
