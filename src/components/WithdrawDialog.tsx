@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { CURRENCY_META, type Currency } from "@/lib/currency";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -23,7 +22,8 @@ export function WithdrawDialog({
   balance: number;
 }) {
   const [amount, setAmount] = useState("");
-  const [bank, setBank] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const req = useServerFn(requestWithdrawal);
@@ -53,7 +53,14 @@ export function WithdrawDialog({
               if (amt > balance) return toast.error("Insufficient balance");
               setLoading(true);
               try {
-                await req({ data: { amount: amt, currency, bankDetails: bank || undefined } });
+                await req({
+                  data: {
+                    amount: amt,
+                    currency,
+                    bankName: bankName.trim() || undefined,
+                    accountNumber: accountNumber.trim() || undefined,
+                  },
+                });
                 setDone(true);
                 await qc.invalidateQueries();
               } catch (err: any) {
@@ -68,8 +75,12 @@ export function WithdrawDialog({
               <Input id="wamt" type="number" min="0" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="bd">Bank details (optional)</Label>
-              <Textarea id="bd" placeholder="Bank name, account number, branch..." value={bank} onChange={(e) => setBank(e.target.value)} />
+              <Label htmlFor="bn">Bank name</Label>
+              <Input id="bn" required value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. FNB" />
+            </div>
+            <div>
+              <Label htmlFor="an">Account number</Label>
+              <Input id="an" inputMode="numeric" required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Your bank account number" />
             </div>
             <Button type="submit" className="w-full gradient-brand text-white" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Request withdrawal

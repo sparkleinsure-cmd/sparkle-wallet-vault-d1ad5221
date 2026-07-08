@@ -2,7 +2,43 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const CURRENCIES = ["ZAR", "NGN", "GHS", "USD"] as const;
+const CURRENCIES = ["ZAR", "USD"] as const;
+
+const ADMIN_EMAIL = "sparkleinsure@gmail.com";
+
+async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  const resendKey = process.env.RESEND_API_KEY;
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (!resendKey || !lovableKey) {
+    console.log(`[email:no-provider] to=${to} subject="${subject}"\n${text}`);
+    return { ok: false, error: "email_provider_not_configured" };
+  }
+  try {
+    const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": resendKey,
+      },
+      body: JSON.stringify({
+        from: "Sparkle Insure <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[email:send-failed] ${res.status} ${body}`);
+      return { ok: false, error: `provider_${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    console.error("[email:send-error]", err);
+    return { ok: false, error: err?.message ?? "send_error" };
+  }
+}
 
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -93,12 +129,13 @@ export const creditDeposit = createServerFn({ method: "POST" })
 
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { amount: number; currency: string; bankDetails?: string }) =>
+  .inputValidator((d: { amount: number; currency: string; bankName?: string; accountNumber?: string }) =>
     z
       .object({
         amount: z.number().positive().max(10_000_000),
         currency: z.enum(CURRENCIES),
-        bankDetails: z.string().max(500).optional(),
+        bankName: z.string().max(200).optional(),
+        accountNumber: z.string().max(100).optional(),
       })
       .parse(d),
   )
@@ -135,31 +172,16 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
 
     // Notify admin (background — best effort)
     const p = profile.data;
-    const body = `New withdrawal request\n\nAccount: ${p.account_id}\nName: ${p.first_name} ${p.surname}\nEmail: ${p.email}\nPhone: ${p.phone}\nAmount: ${data.currency} ${data.amount.toFixed(2)}\nBank details: ${data.bankDetails ?? "(on file)"}\n`;
-    try {
-      const resendKey = process.env.RESEND_API_KEY;
-      const lovableKey = process.env.LOVABLE_API_KEY;
-      if (resendKey && lovableKey) {
-        await fetch("https://connector-gateway.lovable.dev/resend/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${lovableKey}`,
-            "X-Connection-Api-Key": resendKey,
-          },
-          body: JSON.stringify({
-            from: "Sparkle Insure <onboarding@resend.dev>",
-            to: ["sparkleinsure@gmail.com"],
-            subject: `Withdrawal request — ${p.account_id}`,
-            text: body,
-          }),
-        });
-      } else {
-        console.log("[withdrawal:notify]", body);
-      }
-    } catch (err) {
-      console.error("[withdrawal:notify:error]", err);
-    }
+    const body =
+      `New withdrawal request\n\n` +
+      `User ID (Account): ${p.account_id}\n` +
+      `Name: ${p.first_name} ${p.surname}\n` +
+      `Email: ${p.email}\n` +
+      `Phone: ${p.phone}\n` +
+      `Amount: ${data.currency} ${data.amount.toFixed(2)}\n` +
+      `Bank name: ${data.bankName ?? "(not provided)"}\n` +
+      `Account number: ${data.accountNumber ?? "(not provided)"}\n`;
+    await sendEmail(ADMIN_EMAIL, `Withdrawal request — ${p.account_id}`, body);
 
     return { ok: true };
   });
@@ -171,21 +193,29 @@ export const sendOtps = createServerFn({ method: "POST" })
     // Consume any old codes
     await supabase.from("otp_codes").update({ consumed: true }).eq("user_id", userId).eq("consumed", false);
     const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const phoneCode = Math.floor(100000 + Math.random() * 900000).toString();
     const { error } = await supabase.from("otp_codes").insert([
       { user_id: userId, channel: "email", code: emailCode },
-      { user_id: userId, channel: "phone", code: phoneCode },
     ]);
     if (error) throw new Error(error.message);
-    // In production the codes would be sent via Email/SMS; we return them so
-    // the UI can show a "development delivery" notice (simulated).
-    return { ok: true, emailCode, phoneCode };
+
+    const profile = await supabase.from("profiles").select("email, first_name").eq("id", userId).maybeSingle();
+    const recipient = profile.data?.email;
+    let delivered = false;
+    if (recipient) {
+      const r = await sendEmail(
+        recipient,
+        "Your Sparkle Insure verification code",
+        `Hi ${profile.data?.first_name ?? ""},\n\nYour Sparkle Insure verification code is: ${emailCode}\n\nThis code expires shortly. If you did not request it, please ignore this email.`,
+      );
+      delivered = r.ok;
+    }
+    return { ok: true, delivered };
   });
 
 export const verifyOtps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { emailCode: string; phoneCode: string }) =>
-    z.object({ emailCode: z.string().length(6), phoneCode: z.string().length(6) }).parse(d),
+  .inputValidator((d: { emailCode: string }) =>
+    z.object({ emailCode: z.string().length(6) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -193,15 +223,14 @@ export const verifyOtps = createServerFn({ method: "POST" })
       .from("otp_codes")
       .select("*")
       .eq("user_id", userId)
-      .eq("consumed", false);
+      .eq("consumed", false)
+      .eq("channel", "email");
     if (codes.error) throw new Error(codes.error.message);
     const email = codes.data?.find((c) => c.channel === "email");
-    const phone = codes.data?.find((c) => c.channel === "phone");
-    if (!email || !phone) throw new Error("No OTP pending. Please resend.");
-    if (email.code !== data.emailCode) throw new Error("Email OTP is incorrect.");
-    if (phone.code !== data.phoneCode) throw new Error("Phone OTP is incorrect.");
+    if (!email) throw new Error("No verification code pending. Please resend.");
+    if (email.code !== data.emailCode) throw new Error("Verification code is incorrect.");
 
-    await supabase.from("otp_codes").update({ consumed: true }).in("id", [email.id, phone.id]);
+    await supabase.from("otp_codes").update({ consumed: true }).eq("id", email.id);
     const upd = await supabase.from("profiles").update({ kyc_status: "verified" }).eq("id", userId);
     if (upd.error) throw new Error(upd.error.message);
     return { ok: true };

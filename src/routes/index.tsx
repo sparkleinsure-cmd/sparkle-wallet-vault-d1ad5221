@@ -37,7 +37,7 @@ function Index() {
               Banking that feels <span className="text-gradient-brand">effortless</span>.
             </h1>
             <p className="mt-6 max-w-lg text-lg text-muted-foreground">
-              Hold ZAR, NGN, GHS and USD in one insured wallet. Fund via Paystack, withdraw
+              Hold ZAR and USD in one insured wallet. Fund by bank deposit, withdraw
               in 24 hours, download statements in seconds.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -51,7 +51,7 @@ function Index() {
             <div className="mt-10 flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Bank-grade encryption</span>
               <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> KYC verified</span>
-              <span className="inline-flex items-center gap-1.5"><Globe2 className="h-3.5 w-3.5" /> Pan-African + USD</span>
+              <span className="inline-flex items-center gap-1.5"><Globe2 className="h-3.5 w-3.5" /> ZAR + USD</span>
             </div>
           </div>
 
@@ -74,7 +74,7 @@ function Index() {
               </div>
               <div className="mt-6 space-y-3">
                 {[
-                  { l: "Paystack top-up", a: "+R 2,500.00", c: "text-emerald-600" },
+                  { l: "Bank deposit", a: "+R 2,500.00", c: "text-emerald-600" },
                   { l: "Withdrawal", a: "-R 1,200.00", c: "text-rose-600" },
                   { l: "Welcome bonus", a: "+R 500.00", c: "text-emerald-600" },
                 ].map((r) => (
@@ -91,9 +91,9 @@ function Index() {
 
         <section className="mt-28 grid gap-6 md:grid-cols-3">
           {[
-            { icon: Wallet, t: "One wallet, four currencies", d: "Hold and spend in ZAR, NGN, GHS and USD without leaving the app." },
-            { icon: ShieldCheck, t: "KYC-verified accounts", d: "Every account is verified with dual email + phone OTP for total peace of mind." },
-            { icon: Sparkles, t: "Instant deposits with Paystack", d: "Fund your wallet in seconds using cards, bank transfer or mobile money." },
+            { icon: Wallet, t: "One wallet, dual currency", d: "Hold and spend in ZAR and USD without leaving the app." },
+            { icon: ShieldCheck, t: "KYC-verified accounts", d: "Every account is verified with an email OTP for total peace of mind." },
+            { icon: Sparkles, t: "Simple bank deposits", d: "Fund your wallet by transferring to our FNB account and uploading proof of payment." },
           ].map(({ icon: Icon, t, d }) => (
             <div key={t} className="glass-card rounded-2xl p-6">
               <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl gradient-brand text-white">

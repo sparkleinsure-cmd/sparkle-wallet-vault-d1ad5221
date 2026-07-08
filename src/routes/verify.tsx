@@ -21,9 +21,8 @@ function VerifyPage() {
   const navigate = useNavigate();
   const send = useServerFn(sendOtps);
   const verify = useServerFn(verifyOtps);
-  const [sent, setSent] = useState<{ emailCode: string; phoneCode: string } | null>(null);
+  const [sent, setSent] = useState<{ delivered: boolean } | null>(null);
   const [emailCode, setEmailCode] = useState("");
-  const [phoneCode, setPhoneCode] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,8 +39,8 @@ function VerifyPage() {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-display text-xl font-bold">Verify your identity</h1>
-            <p className="text-sm text-muted-foreground">Enter the codes sent to your email and phone.</p>
+            <h1 className="font-display text-xl font-bold">Verify your email</h1>
+            <p className="text-sm text-muted-foreground">Enter the 6-digit code we sent to your email.</p>
           </div>
         </div>
 
@@ -53,8 +52,12 @@ function VerifyPage() {
               setLoading(true);
               try {
                 const r = await send();
-                setSent({ emailCode: r.emailCode, phoneCode: r.phoneCode });
-                toast.success("Codes sent to your email and phone.");
+                setSent({ delivered: r.delivered });
+                toast.success(
+                  r.delivered
+                    ? "Verification code sent to your email."
+                    : "Code generated. Email delivery is not configured yet — contact support.",
+                );
               } catch (e: any) {
                 toast.error(e.message);
               } finally {
@@ -62,7 +65,7 @@ function VerifyPage() {
               }
             }}
           >
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Send verification codes
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Send verification code
           </Button>
         ) : (
           <form
@@ -71,7 +74,7 @@ function VerifyPage() {
               e.preventDefault();
               setLoading(true);
               try {
-                await verify({ data: { emailCode, phoneCode } });
+                await verify({ data: { emailCode } });
                 toast.success("Verified! Welcome.");
                 navigate({ to: "/dashboard" });
               } catch (err: any) {
@@ -82,17 +85,13 @@ function VerifyPage() {
             }}
           >
             <div className="rounded-xl border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground">Simulated delivery (demo)</div>
-              Email code: <span className="font-mono">{sent.emailCode}</span> · Phone code:{" "}
-              <span className="font-mono">{sent.phoneCode}</span>
+              {sent.delivered
+                ? "We emailed a 6-digit code to your registered address. Check your inbox (and spam)."
+                : "Email delivery isn't configured yet — please contact support to receive your code."}
             </div>
             <div>
-              <Label htmlFor="ec">Email OTP</Label>
+              <Label htmlFor="ec">Email verification code</Label>
               <Input id="ec" inputMode="numeric" maxLength={6} required value={emailCode} onChange={(e) => setEmailCode(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="pc">Phone OTP</Label>
-              <Input id="pc" inputMode="numeric" maxLength={6} required value={phoneCode} onChange={(e) => setPhoneCode(e.target.value)} />
             </div>
             <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Verify & continue

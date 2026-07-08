@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const CURRENCIES = ["ZAR", "NGN", "GHS", "USD"] as const;
+const CURRENCIES = ["ZAR", "USD"] as const;
 
 async function assertAdmin(supabase: any, userId: string) {
   const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
@@ -105,11 +105,11 @@ export const adminSeedDemo = createServerFn({ method: "POST" })
     if ((existing.count ?? 0) >= 5) return { ok: true, seeded: 0 };
 
     const demos = [
-      { first: "Amara", last: "Okafor", phone: "+2348012345001", ccy: "NGN", bal: 425000 },
       { first: "Thabo", last: "Mokoena", phone: "+27821110002", ccy: "ZAR", bal: 18450 },
-      { first: "Kwame", last: "Mensah", phone: "+233241110003", ccy: "GHS", bal: 9200 },
       { first: "Sarah", last: "Johnson", phone: "+14155550104", ccy: "USD", bal: 3120 },
       { first: "Linda", last: "Naidoo", phone: "+27831110005", ccy: "ZAR", bal: 62400 },
+      { first: "Michael", last: "Van Wyk", phone: "+27831110006", ccy: "ZAR", bal: 9840 },
+      { first: "Emily", last: "Carter", phone: "+14155550107", ccy: "USD", bal: 1560 },
     ] as const;
 
     let count = 0;
@@ -143,7 +143,7 @@ export const adminSeedDemo = createServerFn({ method: "POST" })
       const now = Date.now();
       const txRows = [
         { user_id: uid, type: "deposit", currency: d.ccy, amount: d.bal * 0.6, status: "completed", description: "Opening deposit", reference: `SEED-${uid}-1`, created_at: new Date(now - 20 * 864e5).toISOString() },
-        { user_id: uid, type: "deposit", currency: d.ccy, amount: d.bal * 0.3, status: "completed", description: "Paystack top-up", reference: `SEED-${uid}-2`, created_at: new Date(now - 10 * 864e5).toISOString() },
+        { user_id: uid, type: "deposit", currency: d.ccy, amount: d.bal * 0.3, status: "completed", description: "Bank deposit top-up", reference: `SEED-${uid}-2`, created_at: new Date(now - 10 * 864e5).toISOString() },
         { user_id: uid, type: "bonus", currency: d.ccy, amount: d.bal * 0.1, status: "completed", description: "Welcome bonus", created_at: new Date(now - 5 * 864e5).toISOString() },
         { user_id: uid, type: "withdrawal", currency: d.ccy, amount: d.bal * 0.05, status: "completed", description: "Payout", created_at: new Date(now - 2 * 864e5).toISOString() },
       ];
