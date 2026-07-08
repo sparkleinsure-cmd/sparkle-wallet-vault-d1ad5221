@@ -2,7 +2,43 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const CURRENCIES = ["ZAR", "NGN", "GHS", "USD"] as const;
+const CURRENCIES = ["ZAR", "USD"] as const;
+
+const ADMIN_EMAIL = "sparkleinsure@gmail.com";
+
+async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  const resendKey = process.env.RESEND_API_KEY;
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (!resendKey || !lovableKey) {
+    console.log(`[email:no-provider] to=${to} subject="${subject}"\n${text}`);
+    return { ok: false, error: "email_provider_not_configured" };
+  }
+  try {
+    const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": resendKey,
+      },
+      body: JSON.stringify({
+        from: "Sparkle Insure <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[email:send-failed] ${res.status} ${body}`);
+      return { ok: false, error: `provider_${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    console.error("[email:send-error]", err);
+    return { ok: false, error: err?.message ?? "send_error" };
+  }
+}
 
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -135,31 +171,16 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
 
     // Notify admin (background — best effort)
     const p = profile.data;
-    const body = `New withdrawal request\n\nAccount: ${p.account_id}\nName: ${p.first_name} ${p.surname}\nEmail: ${p.email}\nPhone: ${p.phone}\nAmount: ${data.currency} ${data.amount.toFixed(2)}\nBank details: ${data.bankDetails ?? "(on file)"}\n`;
-    try {
-      const resendKey = process.env.RESEND_API_KEY;
-      const lovableKey = process.env.LOVABLE_API_KEY;
-      if (resendKey && lovableKey) {
-        await fetch("https://connector-gateway.lovable.dev/resend/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${lovableKey}`,
-            "X-Connection-Api-Key": resendKey,
-          },
-          body: JSON.stringify({
-            from: "Sparkle Insure <onboarding@resend.dev>",
-            to: ["sparkleinsure@gmail.com"],
-            subject: `Withdrawal request — ${p.account_id}`,
-            text: body,
-          }),
-        });
-      } else {
-        console.log("[withdrawal:notify]", body);
-      }
-    } catch (err) {
-      console.error("[withdrawal:notify:error]", err);
-    }
+    const body =
+      `New withdrawal request\n\n` +
+      `User ID (Account): ${p.account_id}\n` +
+      `Name: ${p.first_name} ${p.surname}\n` +
+      `Email: ${p.email}\n` +
+      `Phone: ${p.phone}\n` +
+      `Amount: ${data.currency} ${data.amount.toFixed(2)}\n` +
+      `Bank name: ${data.bankName ?? "(not provided)"}\n` +
+      `Account number: ${data.accountNumber ?? "(not provided)"}\n`;
+    await sendEmail(ADMIN_EMAIL, `Withdrawal request — ${p.account_id}`, body);
 
     return { ok: true };
   });
