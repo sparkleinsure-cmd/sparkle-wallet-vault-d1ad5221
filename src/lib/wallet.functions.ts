@@ -193,21 +193,29 @@ export const sendOtps = createServerFn({ method: "POST" })
     // Consume any old codes
     await supabase.from("otp_codes").update({ consumed: true }).eq("user_id", userId).eq("consumed", false);
     const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const phoneCode = Math.floor(100000 + Math.random() * 900000).toString();
     const { error } = await supabase.from("otp_codes").insert([
       { user_id: userId, channel: "email", code: emailCode },
-      { user_id: userId, channel: "phone", code: phoneCode },
     ]);
     if (error) throw new Error(error.message);
-    // In production the codes would be sent via Email/SMS; we return them so
-    // the UI can show a "development delivery" notice (simulated).
-    return { ok: true, emailCode, phoneCode };
+
+    const profile = await supabase.from("profiles").select("email, first_name").eq("id", userId).maybeSingle();
+    const recipient = profile.data?.email;
+    let delivered = false;
+    if (recipient) {
+      const r = await sendEmail(
+        recipient,
+        "Your Sparkle Insure verification code",
+        `Hi ${profile.data?.first_name ?? ""},\n\nYour Sparkle Insure verification code is: ${emailCode}\n\nThis code expires shortly. If you did not request it, please ignore this email.`,
+      );
+      delivered = r.ok;
+    }
+    return { ok: true, delivered };
   });
 
 export const verifyOtps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { emailCode: string; phoneCode: string }) =>
-    z.object({ emailCode: z.string().length(6), phoneCode: z.string().length(6) }).parse(d),
+  .inputValidator((d: { emailCode: string }) =>
+    z.object({ emailCode: z.string().length(6) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -215,15 +223,14 @@ export const verifyOtps = createServerFn({ method: "POST" })
       .from("otp_codes")
       .select("*")
       .eq("user_id", userId)
-      .eq("consumed", false);
+      .eq("consumed", false)
+      .eq("channel", "email");
     if (codes.error) throw new Error(codes.error.message);
     const email = codes.data?.find((c) => c.channel === "email");
-    const phone = codes.data?.find((c) => c.channel === "phone");
-    if (!email || !phone) throw new Error("No OTP pending. Please resend.");
-    if (email.code !== data.emailCode) throw new Error("Email OTP is incorrect.");
-    if (phone.code !== data.phoneCode) throw new Error("Phone OTP is incorrect.");
+    if (!email) throw new Error("No verification code pending. Please resend.");
+    if (email.code !== data.emailCode) throw new Error("Verification code is incorrect.");
 
-    await supabase.from("otp_codes").update({ consumed: true }).in("id", [email.id, phone.id]);
+    await supabase.from("otp_codes").update({ consumed: true }).eq("id", email.id);
     const upd = await supabase.from("profiles").update({ kyc_status: "verified" }).eq("id", userId);
     if (upd.error) throw new Error(upd.error.message);
     return { ok: true };
