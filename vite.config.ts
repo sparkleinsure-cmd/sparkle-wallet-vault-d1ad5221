@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    base: '/sparkle-wallet-vault/',
+  },
 });
+
