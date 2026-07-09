@@ -37,7 +37,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: '.output/public' # Updated to point to Lovable's actual output folder
 
       - name: Deploy to GitHub Pages
         id: deployment
