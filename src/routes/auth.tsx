@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { lovable } from "@/integrations/lovable";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Sign in — Sparkle Insure" },
@@ -107,11 +108,50 @@ function AuthPage() {
   );
 }
 
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  minLength,
+  autoComplete,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  minLength?: number;
+  autoComplete?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        required
+        minLength={minLength}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        aria-label={show ? "Hide password" : "Show password"}
+        onClick={() => setShow((s) => !s)}
+        className="absolute inset-y-0 right-2 my-auto flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
 function SignInForm() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
   return (
     <form
       className="space-y-4"
@@ -130,8 +170,27 @@ function SignInForm() {
         <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div>
-        <Label htmlFor="password">Password</Label>
-        <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <button
+            type="button"
+            disabled={resetting}
+            className="text-xs text-primary underline-offset-2 hover:underline disabled:opacity-60"
+            onClick={async () => {
+              if (!email.trim()) return toast.error("Enter your email above first.");
+              setResetting(true);
+              const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: `${window.location.origin}/auth?mode=signin`,
+              });
+              setResetting(false);
+              if (error) return toast.error(error.message);
+              toast.success("Password reset link sent — check your email.");
+            }}
+          >
+            {resetting ? "Sending…" : "Forgot password?"}
+          </button>
+        </div>
+        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
       </div>
       <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign in
@@ -224,7 +283,13 @@ function SignUpForm() {
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
-        <Input id="pw" type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <PasswordInput
+          id="pw"
+          minLength={8}
+          autoComplete="new-password"
+          value={form.password}
+          onChange={(v) => setForm({ ...form, password: v })}
+        />
       </div>
       <div>
         <Label htmlFor="proof">Proof of banking details</Label>

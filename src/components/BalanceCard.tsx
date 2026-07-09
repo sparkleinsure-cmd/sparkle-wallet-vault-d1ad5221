@@ -2,9 +2,11 @@ import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/cur
 import { Button } from "@/components/ui/button";
 import { ArrowDownToLine, ArrowUpFromLine, FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
 
 export function BalanceCard({
-  balance,
+  zarBalance,
+  usdBalance,
   currency,
   onCurrencyChange,
   onDeposit,
@@ -12,7 +14,8 @@ export function BalanceCard({
   onStatement,
   accountId,
 }: {
-  balance: number;
+  zarBalance: number;
+  usdBalance: number;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
   onDeposit: () => void;
@@ -20,6 +23,10 @@ export function BalanceCard({
   onStatement: () => void;
   accountId: string;
 }) {
+  const { data: usdToZar = 18.5 } = useUsdToZarRate();
+  const displayed = convertTotal(zarBalance, usdBalance, usdToZar, currency);
+  const other: Currency = currency === "ZAR" ? "USD" : "ZAR";
+  const displayedOther = convertTotal(zarBalance, usdBalance, usdToZar, other);
   return (
     <div className="glass-card relative overflow-hidden rounded-3xl p-6 md:p-8">
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full gradient-brand opacity-30 blur-3xl" />
@@ -30,11 +37,11 @@ export function BalanceCard({
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Available balance</div>
             <div className="mt-2 flex items-end gap-3">
               <div className="font-display text-4xl font-bold md:text-5xl">
-                {formatMoney(balance, currency)}
+                {formatMoney(displayed, currency)}
               </div>
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {CURRENCY_META[currency].name} · Account {accountId}
+              ≈ {formatMoney(displayedOther, other)} · Rate 1 USD = {usdToZar.toFixed(2)} ZAR · Account {accountId}
             </div>
           </div>
           <Select value={currency} onValueChange={(v) => onCurrencyChange(v as Currency)}>

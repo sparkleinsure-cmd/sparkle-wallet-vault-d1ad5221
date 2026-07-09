@@ -9,6 +9,8 @@ import {
   adminListPendingDeposits,
   adminGetProofUrl,
   adminVerifyDeposit,
+  adminListPendingWithdrawals,
+  adminCompleteWithdrawal,
 } from "@/lib/admin.functions";
 import { AppHeader } from "@/components/Header";
 import { Card } from "@/components/ui/card";
@@ -19,7 +21,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell } from "lucide-react";
+import jsPDF from "jspdf";
+import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
@@ -34,6 +38,8 @@ function AdminPage() {
   const listPending = useServerFn(adminListPendingDeposits);
   const getProof = useServerFn(adminGetProofUrl);
   const verifyDep = useServerFn(adminVerifyDeposit);
+  const listWithdrawals = useServerFn(adminListPendingWithdrawals);
+  const completeWithdrawal = useServerFn(adminCompleteWithdrawal);
   const navigate = useNavigate();
 
   const { data: me, isLoading } = useQuery({ queryKey: ["me"], queryFn: () => fetchMe() });
@@ -41,6 +47,12 @@ function AdminPage() {
     queryKey: ["admin-pending-deposits"],
     queryFn: () => listPending(),
     enabled: !!me?.roles.includes("admin"),
+  });
+  const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
+    queryKey: ["admin-pending-withdrawals"],
+    queryFn: () => listWithdrawals(),
+    enabled: !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
   });
 
   useEffect(() => {
@@ -82,6 +94,37 @@ function AdminPage() {
             <Database className="mr-2 h-4 w-4" /> Seed demo users
           </Button>
         </div>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-4 flex items-center font-display text-lg font-semibold">
+            <Bell className="mr-2 h-4 w-4 text-primary" />
+            Withdrawal requests
+            {withdrawals?.withdrawals.length ? (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                {withdrawals.withdrawals.length}
+              </span>
+            ) : null}
+          </h2>
+          {!withdrawals?.withdrawals.length ? (
+            <p className="text-sm text-muted-foreground">No pending withdrawal requests.</p>
+          ) : (
+            <div className="space-y-3">
+              {withdrawals.withdrawals.map((w: any) => (
+                <WithdrawalRow
+                  key={w.id}
+                  withdrawal={w}
+                  onComplete={async (note) => {
+                    try {
+                      await completeWithdrawal({ data: { txId: w.id, note } });
+                      toast.success("Withdrawal marked completed");
+                      refetchWithdrawals();
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-4 font-display text-lg font-semibold">
@@ -215,6 +258,104 @@ function AdminPage() {
           </Card>
         )}
       </main>
+    </div>
+  );
+}
+
+function parseWithdrawalDescription(desc: string | null | undefined) {
+  if (!desc) return { bank: "n/a", account: "n/a" };
+  const bank = /Bank:\s*([^·]+?)(?:\s*·|$)/i.exec(desc)?.[1]?.trim() ?? "n/a";
+  const account = /Acc:\s*([^·]+?)(?:\s*·|$)/i.exec(desc)?.[1]?.trim() ?? "n/a";
+  return { bank, account };
+}
+
+function downloadWithdrawalPdf(w: any) {
+  const p = w.profiles ?? {};
+  const { bank, account } = parseWithdrawalDescription(w.description);
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.setTextColor(30, 90, 110);
+  doc.text("Sparkle Insure — Withdrawal Request", 14, 20);
+  doc.setFontSize(11);
+  doc.setTextColor(60);
+  const lines: [string, string][] = [
+    ["Request ID", w.id],
+    ["Submitted", format(new Date(w.created_at), "d MMM yyyy HH:mm")],
+    ["Status", w.status],
+    ["", ""],
+    ["Account holder", `${p.first_name ?? ""} ${p.surname ?? ""}`.trim()],
+    ["User ID (Account)", p.account_id ?? ""],
+    ["Email", p.email ?? ""],
+    ["Phone", p.phone ?? ""],
+    ["", ""],
+    ["Amount", `${w.currency} ${Number(w.amount).toFixed(2)}`],
+    ["Bank name", bank],
+    ["Account number", account],
+  ];
+  let y = 34;
+  for (const [k, v] of lines) {
+    if (k === "" && v === "") { y += 4; continue; }
+    doc.setFont("helvetica", "bold");
+    doc.text(`${k}:`, 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(String(v), 70, y);
+    y += 7;
+  }
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text(`Generated ${format(new Date(), "d MMM yyyy HH:mm")} · Sparkle Insure Admin`, 14, 285);
+  doc.save(`withdrawal-${p.account_id ?? "user"}-${w.id.slice(0, 8)}.pdf`);
+}
+
+function WithdrawalRow({
+  withdrawal,
+  onComplete,
+}: {
+  withdrawal: any;
+  onComplete: (note: string | undefined) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const p = withdrawal.profiles;
+  const { bank, account } = parseWithdrawalDescription(withdrawal.description);
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-display text-base font-semibold">
+            {p?.first_name} {p?.surname}{" "}
+            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{p?.account_id}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {p?.email} · {p?.phone} · {new Date(withdrawal.created_at).toLocaleString()}
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-primary">
+            {formatMoney(Number(withdrawal.amount), withdrawal.currency as Currency)}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Bank: <span className="font-medium text-foreground">{bank}</span> · Acc:{" "}
+            <span className="font-mono">{account}</span>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => downloadWithdrawalPdf(withdrawal)}>
+          <FileDown className="mr-2 h-4 w-4" /> Download PDF
+        </Button>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note (e.g. reference paid)" />
+        <Button
+          size="sm"
+          className="gradient-brand text-white"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await onComplete(note.trim() || undefined);
+            setBusy(false);
+          }}
+        >
+          <CheckCircle2 className="mr-2 h-4 w-4" /> Mark completed
+        </Button>
+      </div>
     </div>
   );
 }

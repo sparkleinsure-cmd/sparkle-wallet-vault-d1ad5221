@@ -248,3 +248,56 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
     }
     return { ok: true, delta };
   });
+
+export const adminListPendingWithdrawals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const txs = await supabaseAdmin
+      .from("transactions")
+      .select("*")
+      .eq("type", "withdrawal")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (txs.error) throw new Error(txs.error.message);
+    const userIds = Array.from(new Set((txs.data ?? []).map((t) => t.user_id)));
+    let profilesById: Record<string, any> = {};
+    if (userIds.length) {
+      const p = await supabaseAdmin
+        .from("profiles")
+        .select("id, account_id, first_name, surname, email, phone")
+        .in("id", userIds);
+      profilesById = Object.fromEntries((p.data ?? []).map((x) => [x.id, x]));
+    }
+    const withdrawals = (txs.data ?? []).map((t) => ({ ...t, profiles: profilesById[t.user_id] ?? null }));
+    return { withdrawals };
+  });
+
+export const adminCompleteWithdrawal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { txId: string; note?: string }) =>
+    z.object({ txId: z.string().uuid(), note: z.string().max(300).optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tx = await supabaseAdmin
+      .from("transactions")
+      .select("*")
+      .eq("id", data.txId)
+      .maybeSingle();
+    if (tx.error || !tx.data) throw new Error("Withdrawal not found");
+    if (tx.data.type !== "withdrawal") throw new Error("Not a withdrawal");
+    if (tx.data.status !== "pending") throw new Error("Already processed");
+    const upd = await supabaseAdmin
+      .from("transactions")
+      .update({
+        status: "completed",
+        description: `Withdrawal completed by admin${data.note ? ` — ${data.note}` : ""}`,
+      })
+      .eq("id", data.txId);
+    if (upd.error) throw new Error(upd.error.message);
+    return { ok: true };
+  });

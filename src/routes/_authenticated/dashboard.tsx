@@ -66,7 +66,8 @@ function DashboardPage() {
         </div>
 
         <BalanceCard
-          balance={balance}
+          zarBalance={Number(data.wallets.find((w) => w.currency === "ZAR")?.balance ?? 0)}
+          usdBalance={Number(data.wallets.find((w) => w.currency === "USD")?.balance ?? 0)}
           currency={currency}
           accountId={profile.account_id}
           onCurrencyChange={async (c) => {

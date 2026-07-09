@@ -159,7 +159,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       currency: data.currency,
       amount: data.amount,
       status: "pending",
-      description: "Withdrawal request",
+      description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}`,
     });
     if (tx.error) throw new Error(tx.error.message);
 
