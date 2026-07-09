@@ -14,7 +14,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.sparkleinsure.app",
   appName: "Sparkle Insure",
-  webDir: "dist",
+  webDir: ".output/public",
   bundledWebRuntime: false,
   server: {
     androidScheme: "https",
