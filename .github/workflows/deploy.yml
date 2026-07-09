@@ -2,7 +2,7 @@ name: Deploy Lovable App to Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main"] # Or "master" depending on your default branch
 
 permissions:
   contents: read
@@ -23,23 +23,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Node.js
+        uses: actions/preferred-node-version@v1
         with:
-          bun-version: latest
+          node-version: '20'
 
       - name: Install Dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Build Application
-        run: |
-          bun run build
-          cp .output/public/index.html .output/public/404.html || true
+        run: npm run build
 
       - name: Upload Build Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.output/public'
+          path: './dist' # Lovable outputs the final HTML/CSS here
 
       - name: Deploy to GitHub Pages
         id: deployment
