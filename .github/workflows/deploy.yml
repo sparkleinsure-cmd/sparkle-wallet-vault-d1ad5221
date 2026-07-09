@@ -2,7 +2,7 @@ name: Deploy Lovable App to Pages
 
 on:
   push:
-    branches: ["main"] # Or "master" depending on your default branch
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/preferred-node-version@v1
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -37,7 +37,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist' # Lovable outputs the final HTML/CSS here
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
