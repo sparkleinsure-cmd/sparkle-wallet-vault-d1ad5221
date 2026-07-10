@@ -11,6 +11,7 @@ import {
   adminVerifyDeposit,
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
+  adminListActiveTranches,
 } from "@/lib/admin.functions";
 import { AppHeader } from "@/components/Header";
 import { Card } from "@/components/ui/card";
@@ -40,6 +41,7 @@ function AdminPage() {
   const verifyDep = useServerFn(adminVerifyDeposit);
   const listWithdrawals = useServerFn(adminListPendingWithdrawals);
   const completeWithdrawal = useServerFn(adminCompleteWithdrawal);
+  const listTranches = useServerFn(adminListActiveTranches);
   const navigate = useNavigate();
 
   const { data: me, isLoading } = useQuery({ queryKey: ["me"], queryFn: () => fetchMe() });
@@ -66,6 +68,16 @@ function AdminPage() {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("ZAR");
   const [note, setNote] = useState("");
+  const [holdRule, setHoldRule] = useState<"attach" | "instant">("instant");
+  const [parentTrancheId, setParentTrancheId] = useState<string>("");
+  const [activeTranches, setActiveTranches] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!target?.profile || holdRule !== "attach") { setActiveTranches([]); return; }
+    listTranches({ data: { accountId: target.profile.account_id, currency } })
+      .then((r) => setActiveTranches(r.tranches))
+      .catch(() => setActiveTranches([]));
+  }, [target, currency, holdRule, listTranches]);
 
   if (isLoading || !me) return (
     <div className="flex min-h-screen items-center justify-center">
@@ -216,22 +228,30 @@ function AdminPage() {
             </div>
 
             <form
-              className="grid gap-3 md:grid-cols-[1fr_140px_2fr_auto]"
+              className="space-y-3"
               onSubmit={async (e) => {
                 e.preventDefault();
                 const amt = Number(amount);
                 if (!isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount");
+                if (holdRule === "attach" && !parentTrancheId) return toast.error("Select an active tranche");
                 setLoading(true);
                 try {
-                  await credit({ data: { accountId: target.profile.account_id, currency, amount: amt, note: note || undefined } });
+                  await credit({ data: {
+                    accountId: target.profile.account_id,
+                    currency, amount: amt,
+                    note: note || undefined,
+                    holdRule,
+                    parentTrancheId: holdRule === "attach" ? parentTrancheId : undefined,
+                  } });
                   toast.success(`Credited ${formatMoney(amt, currency)} to ${target.profile.account_id}`);
                   const r = await lookup({ data: { accountId: target.profile.account_id } });
                   setTarget(r);
-                  setAmount(""); setNote("");
+                  setAmount(""); setNote(""); setParentTrancheId("");
                 } catch (err: any) { toast.error(err.message); }
                 finally { setLoading(false); }
               }}
             >
+            <div className="grid gap-3 md:grid-cols-[1fr_140px]">
               <div>
                 <Label>Amount</Label>
                 <Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required />
@@ -245,12 +265,52 @@ function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <Label>Credit Type / Hold Rule</Label>
+              <Select value={holdRule} onValueChange={(v) => setHoldRule(v as "attach" | "instant")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="attach">Apply to Active Deposit Tranche</SelectItem>
+                  <SelectItem value="instant">Instant Release / Available Funds</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {holdRule === "attach"
+                  ? "Bonus inherits the selected tranche's maturity date."
+                  : "Bonus is immediately available for withdrawal."}
+              </p>
+            </div>
+            {holdRule === "attach" && (
+              <div>
+                <Label>Target tranche</Label>
+                {activeTranches.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                    No active {currency} tranches for this user.
+                  </div>
+                ) : (
+                  <Select value={parentTrancheId} onValueChange={setParentTrancheId}>
+                    <SelectTrigger><SelectValue placeholder="Select a tranche" /></SelectTrigger>
+                    <SelectContent>
+                      {activeTranches.map((t) => {
+                        const days = Math.max(0, Math.ceil((new Date(t.maturity_date).getTime() - Date.now()) / 864e5));
+                        return (
+                          <SelectItem key={t.id} value={t.id}>
+                            {formatMoney(Number(t.amount), t.currency as Currency)} · matures in {days}d ({format(new Date(t.created_at), "d MMM")})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
               <div>
                 <Label>Note</Label>
                 <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason / description" />
               </div>
-              <div className="flex items-end">
-                <Button type="submit" disabled={loading} className="gradient-accent text-white">
+              <div>
+                <Button type="submit" disabled={loading} className="w-full gradient-accent text-white md:w-auto">
                   <Sparkles className="mr-2 h-4 w-4" /> Credit
                 </Button>
               </div>

@@ -25,7 +25,7 @@ export const adminLookupUser = createServerFn({ method: "POST" })
       .maybeSingle();
     if (profile.error) throw new Error(profile.error.message);
     if (!profile.data) return { profile: null, wallets: [], transactions: [] };
-    const [wallets, txs] = await Promise.all([
+    const [wallets, txs, tranches] = await Promise.all([
       supabaseAdmin.from("wallets").select("*").eq("user_id", profile.data.id).order("currency"),
       supabaseAdmin
         .from("transactions")
@@ -33,23 +33,32 @@ export const adminLookupUser = createServerFn({ method: "POST" })
         .eq("user_id", profile.data.id)
         .order("created_at", { ascending: false })
         .limit(50),
+      supabaseAdmin
+        .from("deposit_tranches")
+        .select("*")
+        .eq("user_id", profile.data.id)
+        .gt("remaining", 0)
+        .order("created_at"),
     ]);
     return {
       profile: profile.data,
       wallets: wallets.data ?? [],
       transactions: txs.data ?? [],
+      tranches: tranches.data ?? [],
     };
   });
 
 export const adminCreditBonus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { accountId: string; currency: string; amount: number; note?: string }) =>
+  .inputValidator((d: { accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string }) =>
     z
       .object({
         accountId: z.string().min(3).max(20),
         currency: z.enum(CURRENCIES),
         amount: z.number().positive().max(1_000_000),
         note: z.string().max(200).optional(),
+        holdRule: z.enum(["attach", "instant"]),
+        parentTrancheId: z.string().uuid().optional(),
       })
       .parse(d),
   )
@@ -63,6 +72,21 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!profile.data) throw new Error("Account not found");
     const uid = profile.data.id;
+
+    let maturity = new Date().toISOString();
+    let parentId: string | null = null;
+    if (data.holdRule === "attach") {
+      if (!data.parentTrancheId) throw new Error("Select a tranche to attach to");
+      const parent = await supabaseAdmin
+        .from("deposit_tranches")
+        .select("*")
+        .eq("id", data.parentTrancheId)
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (!parent.data) throw new Error("Tranche not found");
+      maturity = parent.data.maturity_date;
+      parentId = parent.data.id;
+    }
 
     const wallet = await supabaseAdmin
       .from("wallets")
@@ -82,15 +106,56 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
     } else {
       await supabaseAdmin.from("wallets").insert({ user_id: uid, currency: data.currency, balance: next });
     }
-    await supabaseAdmin.from("transactions").insert({
+    const tx = await supabaseAdmin.from("transactions").insert({
       user_id: uid,
       type: "bonus",
       currency: data.currency,
       amount: data.amount,
       status: "completed",
-      description: data.note ?? "Bonus credit from admin",
+      description: (data.note ?? "Bonus credit from admin") + (data.holdRule === "attach" ? " (attached to tranche)" : " (instant release)"),
+    }).select("id").maybeSingle();
+
+    await supabaseAdmin.from("deposit_tranches").insert({
+      user_id: uid,
+      currency: data.currency,
+      amount: data.amount,
+      remaining: data.amount,
+      source: "bonus",
+      parent_tranche_id: parentId,
+      transaction_id: tx.data?.id ?? null,
+      note: data.note ?? null,
+      maturity_date: maturity,
     });
     return { ok: true, balance: next };
+  });
+
+export const adminListActiveTranches = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { accountId: string; currency: string }) =>
+    z.object({
+      accountId: z.string().min(3).max(20),
+      currency: z.enum(CURRENCIES),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const profile = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("account_id", data.accountId.toUpperCase())
+      .maybeSingle();
+    if (!profile.data) return { tranches: [] };
+    const now = new Date().toISOString();
+    const t = await supabaseAdmin
+      .from("deposit_tranches")
+      .select("*")
+      .eq("user_id", profile.data.id)
+      .eq("currency", data.currency)
+      .gt("remaining", 0)
+      .gt("maturity_date", now)
+      .order("created_at");
+    return { tranches: t.data ?? [] };
   });
 
 export const adminSeedDemo = createServerFn({ method: "POST" })
