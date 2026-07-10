@@ -32,6 +32,26 @@ export function StatementDialog({
 }) {
   const [range, setRange] = useState<"7" | "30" | "90">("30");
 
+  const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+  const saveBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    if (isMobile) {
+      // iOS Safari + many mobile browsers ignore the download attribute; open in a new tab so the user can save/share.
+      const win = window.open(url, "_blank");
+      if (!win) window.location.href = url;
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+
   const filtered = () => {
     const days = Number(range);
     const cutoff = Date.now() - days * 864e5;
@@ -51,13 +71,7 @@ export function StatementDialog({
       ]),
     );
     const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sparkle-statement-${range}d.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveBlob(new Blob([csv], { type: "text/csv" }), `sparkle-statement-${range}d.csv`);
   };
 
   const downloadPdf = () => {
@@ -92,7 +106,8 @@ export function StatementDialog({
       y += 6;
     });
 
-    doc.save(`sparkle-statement-${range}d.pdf`);
+    const blob = doc.output("blob");
+    saveBlob(blob, `sparkle-statement-${range}d.pdf`);
   };
 
   return (
