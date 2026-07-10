@@ -70,6 +70,7 @@ function DashboardPage() {
           usdBalance={Number(data.wallets.find((w) => w.currency === "USD")?.balance ?? 0)}
           currency={currency}
           accountId={profile.account_id}
+          tranches={(data as any).tranches ?? []}
           onCurrencyChange={async (c) => {
             await setCcy({ data: { currency: c } });
             qc.invalidateQueries({ queryKey: ["me"] });
