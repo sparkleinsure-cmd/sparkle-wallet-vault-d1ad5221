@@ -51,6 +51,11 @@ function DashboardPage() {
   const wallet = data.wallets.find((w) => w.currency === currency);
   const balance = Number(wallet?.balance ?? 0);
   const isAdmin = data.roles.includes("admin");
+  const tranches = ((data as any).tranches ?? []) as Array<{ currency: string; remaining: number; maturity_date: string }>;
+  const lockedInCurrency = tranches
+    .filter((t) => t.currency === currency && new Date(t.maturity_date).getTime() > Date.now())
+    .reduce((s, t) => s + Number(t.remaining), 0);
+  const withdrawable = Math.max(0, balance - lockedInCurrency);
 
   return (
     <div className="min-h-screen pb-16">
@@ -101,7 +106,7 @@ function DashboardPage() {
       </main>
 
       <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />
-      <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} />
+      <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} withdrawable={withdrawable} />
       <StatementDialog
         open={sOpen}
         onOpenChange={setSOpen}
