@@ -44,11 +44,12 @@ export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [profileRes, walletsRes, txRes, rolesRes] = await Promise.all([
+    const [profileRes, walletsRes, txRes, rolesRes, tranchesRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("wallets").select("*").eq("user_id", userId).order("currency"),
       supabase.from("transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("deposit_tranches").select("*").eq("user_id", userId).gt("remaining", 0).order("created_at"),
     ]);
     if (profileRes.error) throw new Error(profileRes.error.message);
     return {
@@ -56,6 +57,7 @@ export const getMe = createServerFn({ method: "GET" })
       wallets: walletsRes.data ?? [],
       transactions: txRes.data ?? [],
       roles: (rolesRes.data ?? []).map((r) => r.role as string),
+      tranches: tranchesRes.data ?? [],
     };
   });
 
@@ -122,20 +124,34 @@ export const creditDeposit = createServerFn({ method: "POST" })
       reference: data.reference,
       description: `Bank deposit — awaiting admin verification`,
       proof_url: data.proofUrl,
-    });
+    }).select("id").maybeSingle();
     if (tx.error) throw new Error(tx.error.message);
+
+    // Create a locked tranche that matures in 30 days
+    const maturity = new Date(Date.now() + 30 * 864e5).toISOString();
+    const trancheIns = await supabase.from("deposit_tranches").insert({
+      user_id: userId,
+      currency: data.currency,
+      amount: data.amount,
+      remaining: data.amount,
+      source: "deposit",
+      transaction_id: tx.data?.id ?? null,
+      maturity_date: maturity,
+    });
+    if (trancheIns.error) throw new Error(trancheIns.error.message);
     return { ok: true, balance: next };
   });
 
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { amount: number; currency: string; bankName?: string; accountNumber?: string }) =>
+  .inputValidator((d: { amount: number; currency: string; bankName?: string; accountNumber?: string; confirmBreak?: boolean }) =>
     z
       .object({
         amount: z.number().positive().max(10_000_000),
         currency: z.enum(CURRENCIES),
         bankName: z.string().max(200).optional(),
         accountNumber: z.string().max(100).optional(),
+        confirmBreak: z.boolean().optional(),
       })
       .parse(d),
   )
@@ -152,6 +168,36 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       .maybeSingle();
     const current = Number(wallet.data?.balance ?? 0);
     if (current < data.amount) throw new Error("Insufficient balance");
+
+    // FIFO tranche deduction: oldest matured first, then locked only if confirmBreak
+    const tranchesRes = await supabase
+      .from("deposit_tranches")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("currency", data.currency)
+      .gt("remaining", 0)
+      .order("created_at");
+    const tranches = tranchesRes.data ?? [];
+    const now = Date.now();
+    const matured = tranches.filter((t: any) => new Date(t.maturity_date).getTime() <= now);
+    const locked = tranches.filter((t: any) => new Date(t.maturity_date).getTime() > now);
+    const maturedTotal = matured.reduce((s: number, t: any) => s + Number(t.remaining), 0);
+    if (data.amount > maturedTotal && !data.confirmBreak) {
+      throw new Error("BREAKS_TRANCHE");
+    }
+
+    let need = data.amount;
+    const queue = [...matured, ...locked];
+    for (const t of queue) {
+      if (need <= 0) break;
+      const rem = Number(t.remaining);
+      const take = Math.min(rem, need);
+      await supabase
+        .from("deposit_tranches")
+        .update({ remaining: rem - take })
+        .eq("id", t.id);
+      need -= take;
+    }
 
     const tx = await supabase.from("transactions").insert({
       user_id: userId,
