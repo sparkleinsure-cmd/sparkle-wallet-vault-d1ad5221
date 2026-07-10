@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      deposit_tranches: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          maturity_date: string
+          note: string | null
+          parent_tranche_id: string | null
+          remaining: number
+          source: string
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency: string
+          id?: string
+          maturity_date: string
+          note?: string | null
+          parent_tranche_id?: string | null
+          remaining: number
+          source?: string
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          maturity_date?: string
+          note?: string | null
+          parent_tranche_id?: string | null
+          remaining?: number
+          source?: string
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_tranches_parent_tranche_id_fkey"
+            columns: ["parent_tranche_id"]
+            isOneToOne: false
+            referencedRelation: "deposit_tranches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       otp_codes: {
         Row: {
           channel: string
