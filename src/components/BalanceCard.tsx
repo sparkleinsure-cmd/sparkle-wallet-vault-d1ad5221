@@ -10,6 +10,8 @@ type Tranche = {
   currency: string;
   amount: number;
   remaining: number;
+  current_balance?: number;
+  status?: string;
   source: string;
   created_at: string;
   maturity_date: string;
@@ -39,19 +41,21 @@ export function BalanceCard({
   const { data: usdToZar = 18.5 } = useUsdToZarRate();
   const now = Date.now();
 
-  // Compute locked-per-currency from tranches; withdrawable = total wallet - locked (clamped)
-  const lockedZar = tranches
-    .filter((t) => t.currency === "ZAR" && new Date(t.maturity_date).getTime() > now)
-    .reduce((s, t) => s + Number(t.remaining), 0);
-  const lockedUsd = tranches
-    .filter((t) => t.currency === "USD" && new Date(t.maturity_date).getTime() > now)
-    .reduce((s, t) => s + Number(t.remaining), 0);
-  const withdrawableZar = Math.max(0, zarBalance - lockedZar);
-  const withdrawableUsd = Math.max(0, usdBalance - lockedUsd);
+  // Locked (still-running) tranches: use remaining for withdrawable math,
+  // and current_balance (initial + daily incentives) for the growing display.
+  const isLocked = (t: Tranche) =>
+    (t.status ?? (new Date(t.maturity_date).getTime() > now ? "locked" : "matured")) === "locked" &&
+    new Date(t.maturity_date).getTime() > now;
+  const lockedRemainingZar = tranches.filter((t) => t.currency === "ZAR" && isLocked(t)).reduce((s, t) => s + Number(t.remaining), 0);
+  const lockedRemainingUsd = tranches.filter((t) => t.currency === "USD" && isLocked(t)).reduce((s, t) => s + Number(t.remaining), 0);
+  const growingZar = tranches.filter((t) => t.currency === "ZAR" && isLocked(t)).reduce((s, t) => s + Number(t.current_balance ?? t.remaining), 0);
+  const growingUsd = tranches.filter((t) => t.currency === "USD" && isLocked(t)).reduce((s, t) => s + Number(t.current_balance ?? t.remaining), 0);
+  const withdrawableZar = Math.max(0, zarBalance - lockedRemainingZar);
+  const withdrawableUsd = Math.max(0, usdBalance - lockedRemainingUsd);
 
-  const total = convertTotal(zarBalance, usdBalance, usdToZar, currency);
+  const total = convertTotal(zarBalance + (growingZar - lockedRemainingZar), usdBalance + (growingUsd - lockedRemainingUsd), usdToZar, currency);
   const withdrawable = convertTotal(withdrawableZar, withdrawableUsd, usdToZar, currency);
-  const locked = convertTotal(lockedZar, lockedUsd, usdToZar, currency);
+  const locked = convertTotal(growingZar, growingUsd, usdToZar, currency);
   const [showCycles, setShowCycles] = useState(false);
   const activeTranches = tranches.filter((t) => Number(t.remaining) > 0).sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -126,14 +130,16 @@ export function BalanceCard({
               const ms = new Date(t.maturity_date).getTime() - now;
               const days = Math.ceil(ms / 864e5);
               const matured = ms <= 0;
+              const cur = Number(t.current_balance ?? t.remaining);
+              const init = Number(t.amount);
               return (
                 <div key={t.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 p-3 text-sm">
                   <div>
                     <div className="font-semibold">
-                      {formatMoney(Number(t.remaining), t.currency as Currency)}
-                      {Number(t.remaining) !== Number(t.amount) && (
+                      {formatMoney(cur, t.currency as Currency)}
+                      {cur !== init && (
                         <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          of {formatMoney(Number(t.amount), t.currency as Currency)}
+                          from {formatMoney(init, t.currency as Currency)}
                         </span>
                       )}
                     </div>

@@ -134,6 +134,8 @@ export const creditDeposit = createServerFn({ method: "POST" })
       currency: data.currency,
       amount: data.amount,
       remaining: data.amount,
+      current_balance: data.amount,
+      status: "locked",
       source: "deposit",
       transaction_id: tx.data?.id ?? null,
       maturity_date: maturity,
