@@ -120,6 +120,8 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
       currency: data.currency,
       amount: data.amount,
       remaining: data.amount,
+      current_balance: data.amount,
+      status: data.holdRule === "instant" ? "matured" : "locked",
       source: "bonus",
       parent_tranche_id: parentId,
       transaction_id: tx.data?.id ?? null,
