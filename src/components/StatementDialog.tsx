@@ -32,24 +32,27 @@ export function StatementDialog({
 }) {
   const [range, setRange] = useState<"7" | "30" | "90">("30");
 
-  const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const saveBlob = (blob: Blob, filename: string, mime: string) => {
+    // Re-wrap to guarantee an explicit MIME type (iOS Safari otherwise treats octet-stream as "cannot download").
+    const typedBlob = blob.type === mime ? blob : new Blob([blob], { type: mime });
 
-  const saveBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    if (isMobile) {
-      // iOS Safari + many mobile browsers ignore the download attribute; open in a new tab so the user can save/share.
-      const win = window.open(url, "_blank");
-      if (!win) window.location.href = url;
-    } else {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+    // Legacy IE / old Edge
+    const navAny = navigator as any;
+    if (navAny.msSaveOrOpenBlob) {
+      navAny.msSaveOrOpenBlob(typedBlob, filename);
+      return;
     }
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+
+    const url = URL.createObjectURL(typedBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.target = "_blank"; // iOS Safari respects target when download is honored, falls back to opening the file inline for save/share
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
   const filtered = () => {
@@ -71,7 +74,7 @@ export function StatementDialog({
       ]),
     );
     const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-    saveBlob(new Blob([csv], { type: "text/csv" }), `sparkle-statement-${range}d.csv`);
+    saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `sparkle-statement-${range}d.csv`, "text/csv;charset=utf-8");
   };
 
   const downloadPdf = () => {
@@ -107,7 +110,7 @@ export function StatementDialog({
     });
 
     const blob = doc.output("blob");
-    saveBlob(blob, `sparkle-statement-${range}d.pdf`);
+    saveBlob(blob, `sparkle-statement-${range}d.pdf`, "application/pdf");
   };
 
   return (
