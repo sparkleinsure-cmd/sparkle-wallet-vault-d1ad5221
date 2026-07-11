@@ -19,12 +19,14 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          current_balance: number
           id: string
           maturity_date: string
           note: string | null
           parent_tranche_id: string | null
           remaining: number
           source: string
+          status: string
           transaction_id: string | null
           user_id: string
         }
@@ -32,12 +34,14 @@ export type Database = {
           amount: number
           created_at?: string
           currency: string
+          current_balance?: number
           id?: string
           maturity_date: string
           note?: string | null
           parent_tranche_id?: string | null
           remaining: number
           source?: string
+          status?: string
           transaction_id?: string | null
           user_id: string
         }
@@ -45,12 +49,14 @@ export type Database = {
           amount?: number
           created_at?: string
           currency?: string
+          current_balance?: number
           id?: string
           maturity_date?: string
           note?: string | null
           parent_tranche_id?: string | null
           remaining?: number
           source?: string
+          status?: string
           transaction_id?: string | null
           user_id?: string
         }
@@ -216,6 +222,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_daily_tranche_incentive: { Args: never; Returns: undefined }
       generate_account_id: { Args: never; Returns: string }
       has_role: {
         Args: {
