@@ -130,14 +130,16 @@ export function BalanceCard({
               const ms = new Date(t.maturity_date).getTime() - now;
               const days = Math.ceil(ms / 864e5);
               const matured = ms <= 0;
+              const cur = Number(t.current_balance ?? t.remaining);
+              const init = Number(t.amount);
               return (
                 <div key={t.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 p-3 text-sm">
                   <div>
                     <div className="font-semibold">
-                      {formatMoney(Number(t.remaining), t.currency as Currency)}
-                      {Number(t.remaining) !== Number(t.amount) && (
+                      {formatMoney(cur, t.currency as Currency)}
+                      {cur !== init && (
                         <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          of {formatMoney(Number(t.amount), t.currency as Currency)}
+                          from {formatMoney(init, t.currency as Currency)}
                         </span>
                       )}
                     </div>
