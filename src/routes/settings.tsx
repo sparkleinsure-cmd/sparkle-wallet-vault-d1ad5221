@@ -1,11 +1,6 @@
+// ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ExternalLink,
-  Mail,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,23 +22,40 @@ function SettingsPage() {
     }
 
     const confirmed = window.confirm(
-      "Are you absolutely sure? This cannot be undone."
+      "Are you absolutely sure? This will request deletion of your account."
     );
     if (!confirmed) return;
 
     setIsDeleting(true);
 
     try {
-      // Sign out and redirect
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id ?? "";
+      const userEmail = data.user?.email ?? "";
+
+      const subject = encodeURIComponent("Account deletion request");
+      const bodyLines = [
+        "Please delete my account and all associated data.",
+        `User ID: ${userId}`,
+        `Email: ${userEmail}`,
+        "",
+        "Thank you,",
+      ];
+      const body = encodeURIComponent(bodyLines.join("\n"));
+
+      // Open user's mail client to send deletion request to support
+      window.location.href = `mailto:support@sparkleinsure.com?subject=${subject}&body=${body}`;
+
+      // Sign out locally and clear client cache
       await qc.cancelQueries();
       qc.clear();
       await supabase.auth.signOut();
 
-      // Redirect to sign up
+      // Redirect to signup/auth screen
       navigate({ to: "/auth/signup", replace: true });
     } catch (error) {
       console.error("Delete account error:", error);
-      alert("Failed to delete account. Please try again.");
+      alert("Failed to initiate account deletion request. Please contact support@sparkleinsure.com");
       setIsDeleting(false);
     }
   };
@@ -51,10 +63,7 @@ function SettingsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground"
-        >
+        <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="h-4 w-4" />
           Back to dashboard
         </Link>
@@ -62,9 +71,7 @@ function SettingsPage() {
 
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage account actions and legal links.
-        </p>
+        <p className="text-sm text-muted-foreground">Manage account actions and legal links.</p>
       </div>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
@@ -73,8 +80,7 @@ function SettingsPage() {
           <h2 className="font-medium">Delete account</h2>
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
-          Permanently delete your account and all associated data. This action
-          cannot be undone.
+          Request permanent deletion of your account and all associated data. This action cannot be undone.
         </p>
 
         <div className="space-y-3">
@@ -90,7 +96,7 @@ function SettingsPage() {
             disabled={isDeleting || deleteConfirm !== "DELETE"}
             className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {isDeleting ? "Deleting..." : "Delete account"}
+            {isDeleting ? "Processing..." : "Delete account"}
           </button>
         </div>
       </section>
@@ -105,7 +111,7 @@ function SettingsPage() {
           <div className="flex items-center justify-between rounded-md border p-3">
             <span>Privacy policy</span>
             <a
-              href="https://yourdomain.com/privacy-policy"
+              href="https://sparkleinsure.com/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-blue-600"
@@ -117,7 +123,7 @@ function SettingsPage() {
           <div className="flex items-center justify-between rounded-md border p-3">
             <span>Terms of service</span>
             <a
-              href="https://yourdomain.com/terms"
+              href="https://sparkleinsure.com/terms-of-service"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-blue-600"
@@ -128,10 +134,7 @@ function SettingsPage() {
 
           <div className="flex items-center justify-between rounded-md border p-3">
             <span>Support email</span>
-            <a
-              href="mailto:support@yourdomain.com"
-              className="inline-flex items-center gap-1 text-blue-600"
-            >
+            <a href="mailto:support@sparkleinsure.com" className="inline-flex items-center gap-1 text-blue-600">
               Contact <Mail className="h-3.5 w-3.5" />
             </a>
           </div>
@@ -140,3 +143,4 @@ function SettingsPage() {
     </div>
   );
 }
+// ...existing code...
