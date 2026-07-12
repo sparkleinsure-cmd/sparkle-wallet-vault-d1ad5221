@@ -190,3 +190,12 @@
   -webkit-background-clip: text;
   color: transparent;
 }
+/* Force hide the Lovable branding badge if it attempts to load */
+#lovable-badge, 
+.lovable-badge,
+[href*="lovable.dev"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
