@@ -62,6 +62,13 @@ export function DepositDialog({
           <Row label="Reference" value={reference} onCopy={() => copy(reference, "Reference")} highlight />
         </div>
 
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+          <strong>Please use an immediate payment.</strong> Standard EFTs may reflect in your wallet
+          straight away, but the admin will only approve them once the funds have cleared into our
+          bank account. Your 30-day growth cycle starts on the approval date — e.g. if you deposit on
+          the 12th and the admin approves on the 13th, your start date will be the 13th, not the 12th.
+        </div>
+
         <form
           className="space-y-4"
           onSubmit={async (e) => {
