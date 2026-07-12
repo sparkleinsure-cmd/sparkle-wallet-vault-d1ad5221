@@ -433,14 +433,17 @@ function PendingDepositRow({
   deposit,
   onDownload,
   onVerify,
+  onDecline,
 }: {
   deposit: any;
   onDownload: () => void;
   onVerify: (correctedAmount: number | undefined, note: string | undefined) => void;
+  onDecline: (reason: string | undefined) => void;
 }) {
   const [corrected, setCorrected] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const p = deposit.profiles;
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
@@ -469,10 +472,10 @@ function PendingDepositRow({
           <Input type="number" step="0.01" min="0" placeholder={String(deposit.amount)} value={corrected} onChange={(e) => setCorrected(e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs">Note</Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500" />
+          <Label className="text-xs">Note / Decline reason</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500 · or reason for decline" />
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end gap-2">
           <Button
             size="sm"
             className="gradient-brand text-white"
@@ -485,7 +488,20 @@ function PendingDepositRow({
               setBusy(false);
             }}
           >
-            <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={declining}
+            onClick={async () => {
+              if (!confirm("Decline this deposit? The user's wallet credit will be reversed.")) return;
+              setDeclining(true);
+              await onDecline(note.trim() || undefined);
+              setDeclining(false);
+            }}
+          >
+            <XCircle className="mr-2 h-4 w-4" /> Decline
           </Button>
         </div>
       </div>
