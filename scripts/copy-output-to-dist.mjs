@@ -62,11 +62,12 @@ if (!fs.existsSync(indexHtmlPath)) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    ${entryCss ? `<link rel="stylesheet" href="/assets/${entryCss}" />` : ""}
+    <base href="./" />
+    ${entryCss ? `<link rel="stylesheet" href="assets/${entryCss}" />` : ""}
   </head>
   <body>
     <div id="root"></div>
-    ${entryJs ? `<script type="module" src="/assets/${entryJs}"></script>` : ""}
+    ${entryJs ? `<script type="module" src="assets/${entryJs}"></script>` : ""}
   </body>
 </html>
 `;
