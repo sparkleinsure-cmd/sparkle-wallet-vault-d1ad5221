@@ -98,17 +98,5 @@ function SettingsPage() {
               Contact <Mail className="h-3.5 w-3.5" />
             </a>
           </div>
-
-          <div className="rounded-md border p-3">
-            <p className="font-medium">Developer requirements</p>
-            <p className="mt-1 text-muted-foreground">
-              Replace the placeholder compliance links above with your real
-              privacy policy, terms, and support details before publishing to
-              Apple or Google.
-            </p>
-          </div>
-        </div>
-      </section>
-    </div>
   );
 }
