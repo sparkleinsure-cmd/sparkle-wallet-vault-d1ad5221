@@ -431,7 +431,7 @@ export const adminCompleteWithdrawal = createServerFn({ method: "POST" })
       .from("transactions")
       .update({
         status: "completed",
-        description: `Withdrawal completed by admin${data.note ? ` — ${data.note}` : ""}`,
+        description: `Withdrawal approved - Paid${data.note ? ` — ${data.note}` : ""}`,
       })
       .eq("id", data.txId);
     if (upd.error) throw new Error(upd.error.message);
