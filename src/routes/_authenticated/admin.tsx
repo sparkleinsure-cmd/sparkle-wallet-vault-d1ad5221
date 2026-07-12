@@ -9,6 +9,7 @@ import {
   adminListPendingDeposits,
   adminGetProofUrl,
   adminVerifyDeposit,
+  adminDeclineDeposit,
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
   adminListActiveTranches,
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -39,6 +40,7 @@ function AdminPage() {
   const listPending = useServerFn(adminListPendingDeposits);
   const getProof = useServerFn(adminGetProofUrl);
   const verifyDep = useServerFn(adminVerifyDeposit);
+  const declineDep = useServerFn(adminDeclineDeposit);
   const listWithdrawals = useServerFn(adminListPendingWithdrawals);
   const completeWithdrawal = useServerFn(adminCompleteWithdrawal);
   const listTranches = useServerFn(adminListActiveTranches);
@@ -166,6 +168,13 @@ function AdminPage() {
                     try {
                       await verifyDep({ data: { txId: d.id, correctedAmount, note } });
                       toast.success("Deposit verified");
+                      refetchPending();
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                  onDecline={async (reason: string | undefined) => {
+                    try {
+                      await declineDep({ data: { txId: d.id, reason } });
+                      toast.success("Deposit declined & funds cleared");
                       refetchPending();
                     } catch (e: any) { toast.error(e.message); }
                   }}
