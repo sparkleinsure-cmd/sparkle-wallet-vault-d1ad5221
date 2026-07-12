@@ -17,6 +17,7 @@ export type Database = {
       deposit_tranches: {
         Row: {
           amount: number
+          approved: boolean
           created_at: string
           currency: string
           current_balance: number
@@ -32,6 +33,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          approved?: boolean
           created_at?: string
           currency: string
           current_balance?: number
@@ -47,6 +49,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approved?: boolean
           created_at?: string
           currency?: string
           current_balance?: number
