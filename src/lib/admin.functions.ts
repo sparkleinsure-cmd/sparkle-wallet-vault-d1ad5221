@@ -377,7 +377,7 @@ export const adminDeclineDeposit = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("transactions")
       .update({
-        status: "declined",
+        status: "declined" as any,
         description: `Deposit declined by admin${data.reason ? ` — ${data.reason}` : ""}`,
       })
       .eq("id", data.txId);
