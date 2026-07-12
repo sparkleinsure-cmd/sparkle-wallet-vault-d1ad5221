@@ -35,28 +35,27 @@ const copyRecursive = (src, dest) => {
 copyRecursive(sourceDir, targetDir);
 
 const indexHtmlPath = path.join(targetDir, "index.html");
-if (!fs.existsSync(indexHtmlPath)) {
-  const assetsDir = path.join(targetDir, "assets");
-  const jsFiles = fs.existsSync(assetsDir)
-    ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".js")).sort()
-    : [];
-  const cssFiles = fs.existsSync(assetsDir)
-    ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".css")).sort()
-    : [];
+const assetsDir = path.join(targetDir, "assets");
+const jsFiles = fs.existsSync(assetsDir)
+  ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".js")).sort()
+  : [];
+const cssFiles = fs.existsSync(assetsDir)
+  ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".css")).sort()
+  : [];
 
-  const entryJs =
-    jsFiles.find((file) => /^index-.*\.js$/.test(file)) ||
-    jsFiles.find((file) => /^app-.*\.js$/.test(file)) ||
-    jsFiles[0] ||
-    null;
+const entryJs =
+  jsFiles.find((file) => /^index-.*\.js$/.test(file)) ||
+  jsFiles.find((file) => /^app-.*\.js$/.test(file)) ||
+  jsFiles[0] ||
+  null;
 
-  const entryCss =
-    cssFiles.find((file) => /^styles-.*\.css$/.test(file)) ||
-    cssFiles.find((file) => /^app-.*\.css$/.test(file)) ||
-    cssFiles[0] ||
-    null;
+const entryCss =
+  cssFiles.find((file) => /^styles-.*\.css$/.test(file)) ||
+  cssFiles.find((file) => /^app-.*\.css$/.test(file)) ||
+  cssFiles[0] ||
+  null;
 
-  const html = `<!doctype html>
+const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -72,8 +71,5 @@ if (!fs.existsSync(indexHtmlPath)) {
 </html>
 `;
 
-  fs.writeFileSync(indexHtmlPath, html);
-  console.log(`Created ${indexHtmlPath}`);
-} else {
-  console.log(`Found existing ${indexHtmlPath}`);
-}
+fs.writeFileSync(indexHtmlPath, html);
+console.log(`Created ${indexHtmlPath}`);
