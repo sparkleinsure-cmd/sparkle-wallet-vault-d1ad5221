@@ -37,8 +37,8 @@ function Index() {
               Banking that feels <span className="text-gradient-brand">effortless</span>.
             </h1>
             <p className="mt-6 max-w-lg text-lg text-muted-foreground">
-              Hold ZAR and USD in one insured wallet. Fund by bank deposit, withdraw
-              in 24 hours, download statements in seconds.
+              Optimize your savings by holding your funds in our specialized wallet
+              while earning tiered bonuses.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" className="gradient-brand text-white shadow-lg">
@@ -93,7 +93,7 @@ function Index() {
           {[
             { icon: Wallet, t: "One wallet, dual currency", d: "Hold and spend in ZAR and USD without leaving the app." },
             { icon: ShieldCheck, t: "KYC-verified accounts", d: "Every account is verified with an email OTP for total peace of mind." },
-            { icon: Sparkles, t: "Simple bank deposits", d: "Fund your wallet by transferring to our FNB account and uploading proof of payment." },
+            { icon: Sparkles, t: "Simple bank deposits", d: "Transfer funds via EFT or bank deposit to the provided account details to fund your wallet." },
           ].map(({ icon: Icon, t, d }) => (
             <div key={t} className="glass-card rounded-2xl p-6">
               <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl gradient-brand text-white">

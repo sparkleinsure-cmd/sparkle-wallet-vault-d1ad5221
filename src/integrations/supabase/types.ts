@@ -17,6 +17,7 @@ export type Database = {
       deposit_tranches: {
         Row: {
           amount: number
+          approved: boolean
           created_at: string
           currency: string
           current_balance: number
@@ -32,6 +33,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          approved?: boolean
           created_at?: string
           currency: string
           current_balance?: number
@@ -47,6 +49,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approved?: boolean
           created_at?: string
           currency?: string
           current_balance?: number
@@ -235,7 +238,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       kyc_status: "pending" | "verified" | "rejected"
-      tx_status: "pending" | "completed" | "failed"
+      tx_status: "pending" | "completed" | "failed" | "declined"
       tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment"
     }
     CompositeTypes: {
@@ -366,7 +369,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       kyc_status: ["pending", "verified", "rejected"],
-      tx_status: ["pending", "completed", "failed"],
+      tx_status: ["pending", "completed", "failed", "declined"],
       tx_type: ["deposit", "withdrawal", "bonus", "adjustment"],
     },
   },

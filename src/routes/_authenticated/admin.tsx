@@ -9,6 +9,7 @@ import {
   adminListPendingDeposits,
   adminGetProofUrl,
   adminVerifyDeposit,
+  adminDeclineDeposit,
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
   adminListActiveTranches,
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -39,6 +40,7 @@ function AdminPage() {
   const listPending = useServerFn(adminListPendingDeposits);
   const getProof = useServerFn(adminGetProofUrl);
   const verifyDep = useServerFn(adminVerifyDeposit);
+  const declineDep = useServerFn(adminDeclineDeposit);
   const listWithdrawals = useServerFn(adminListPendingWithdrawals);
   const completeWithdrawal = useServerFn(adminCompleteWithdrawal);
   const listTranches = useServerFn(adminListActiveTranches);
@@ -166,6 +168,13 @@ function AdminPage() {
                     try {
                       await verifyDep({ data: { txId: d.id, correctedAmount, note } });
                       toast.success("Deposit verified");
+                      refetchPending();
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                  onDecline={async (reason: string | undefined) => {
+                    try {
+                      await declineDep({ data: { txId: d.id, reason } });
+                      toast.success("Deposit declined & funds cleared");
                       refetchPending();
                     } catch (e: any) { toast.error(e.message); }
                   }}
@@ -424,14 +433,17 @@ function PendingDepositRow({
   deposit,
   onDownload,
   onVerify,
+  onDecline,
 }: {
   deposit: any;
   onDownload: () => void;
   onVerify: (correctedAmount: number | undefined, note: string | undefined) => void;
+  onDecline: (reason: string | undefined) => void;
 }) {
   const [corrected, setCorrected] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const p = deposit.profiles;
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
@@ -460,10 +472,10 @@ function PendingDepositRow({
           <Input type="number" step="0.01" min="0" placeholder={String(deposit.amount)} value={corrected} onChange={(e) => setCorrected(e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs">Note</Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500" />
+          <Label className="text-xs">Note / Decline reason</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Receipt shows R450, not R500 · or reason for decline" />
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end gap-2">
           <Button
             size="sm"
             className="gradient-brand text-white"
@@ -476,7 +488,20 @@ function PendingDepositRow({
               setBusy(false);
             }}
           >
-            <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={declining}
+            onClick={async () => {
+              if (!confirm("Decline this deposit? The user's wallet credit will be reversed.")) return;
+              setDeclining(true);
+              await onDecline(note.trim() || undefined);
+              setDeclining(false);
+            }}
+          >
+            <XCircle className="mr-2 h-4 w-4" /> Decline
           </Button>
         </div>
       </div>

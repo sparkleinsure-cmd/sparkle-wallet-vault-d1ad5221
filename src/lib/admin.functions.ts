@@ -289,6 +289,18 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
       .update({ status: "completed", description: `Verified by admin${data.note ? ` — ${data.note}` : ""}` })
       .eq("id", data.txId);
 
+    // Approve the linked tranche and reset the 30-day cycle to start from approval
+    const approvedAt = new Date();
+    const newMaturity = new Date(approvedAt.getTime() + 30 * 864e5).toISOString();
+    await supabaseAdmin
+      .from("deposit_tranches")
+      .update({
+        approved: true,
+        created_at: approvedAt.toISOString(),
+        maturity_date: newMaturity,
+      })
+      .eq("transaction_id", data.txId);
+
     if (delta !== 0) {
       const wallet = await supabaseAdmin
         .from("wallets")
@@ -303,6 +315,12 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
         .eq("user_id", tx.data.user_id)
         .eq("currency", tx.data.currency);
 
+      // Adjust the tranche principal to the corrected amount
+      await supabaseAdmin
+        .from("deposit_tranches")
+        .update({ amount: corrected, remaining: corrected, current_balance: corrected })
+        .eq("transaction_id", data.txId);
+
       await supabaseAdmin.from("transactions").insert({
         user_id: tx.data.user_id,
         type: "adjustment",
@@ -314,6 +332,57 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
       });
     }
     return { ok: true, delta };
+  });
+
+export const adminDeclineDeposit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { txId: string; reason?: string }) =>
+    z.object({ txId: z.string().uuid(), reason: z.string().max(300).optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tx = await supabaseAdmin
+      .from("transactions")
+      .select("*")
+      .eq("id", data.txId)
+      .maybeSingle();
+    if (tx.error || !tx.data) throw new Error("Transaction not found");
+    if (tx.data.type !== "deposit") throw new Error("Not a deposit");
+    if (tx.data.status !== "pending") throw new Error("Already processed");
+
+    const amount = Number(tx.data.amount);
+
+    // Remove the tranche created for this deposit
+    await supabaseAdmin
+      .from("deposit_tranches")
+      .delete()
+      .eq("transaction_id", data.txId);
+
+    // Reverse the wallet credit
+    const wallet = await supabaseAdmin
+      .from("wallets")
+      .select("balance")
+      .eq("user_id", tx.data.user_id)
+      .eq("currency", tx.data.currency)
+      .maybeSingle();
+    const current = Number(wallet.data?.balance ?? 0);
+    await supabaseAdmin
+      .from("wallets")
+      .update({ balance: Math.max(0, current - amount), updated_at: new Date().toISOString() })
+      .eq("user_id", tx.data.user_id)
+      .eq("currency", tx.data.currency);
+
+    // Mark the deposit tx as declined
+    await supabaseAdmin
+      .from("transactions")
+      .update({
+        status: "declined" as any,
+        description: `Deposit declined by admin${data.reason ? ` — ${data.reason}` : ""}`,
+      })
+      .eq("id", data.txId);
+
+    return { ok: true };
   });
 
 export const adminListPendingWithdrawals = createServerFn({ method: "GET" })
@@ -362,7 +431,7 @@ export const adminCompleteWithdrawal = createServerFn({ method: "POST" })
       .from("transactions")
       .update({
         status: "completed",
-        description: `Withdrawal completed by admin${data.note ? ` — ${data.note}` : ""}`,
+        description: `Withdrawal approved - Paid${data.note ? ` — ${data.note}` : ""}`,
       })
       .eq("id", data.txId);
     if (upd.error) throw new Error(upd.error.message);

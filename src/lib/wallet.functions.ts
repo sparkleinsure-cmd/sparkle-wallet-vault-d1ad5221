@@ -139,6 +139,7 @@ export const creditDeposit = createServerFn({ method: "POST" })
       source: "deposit",
       transaction_id: tx.data?.id ?? null,
       maturity_date: maturity,
+      approved: false,
     });
     if (trancheIns.error) throw new Error(trancheIns.error.message);
     return { ok: true, balance: next };
