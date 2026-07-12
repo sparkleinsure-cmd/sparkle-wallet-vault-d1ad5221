@@ -33,4 +33,46 @@ const copyRecursive = (src, dest) => {
 };
 
 copyRecursive(sourceDir, targetDir);
-console.log(`Copied ${sourceDir} -> ${targetDir}`);
+
+const indexHtmlPath = path.join(targetDir, "index.html");
+if (!fs.existsSync(indexHtmlPath)) {
+  const assetsDir = path.join(targetDir, "assets");
+  const jsFiles = fs.existsSync(assetsDir)
+    ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".js")).sort()
+    : [];
+  const cssFiles = fs.existsSync(assetsDir)
+    ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".css")).sort()
+    : [];
+
+  const entryJs =
+    jsFiles.find((file) => /^index-.*\.js$/.test(file)) ||
+    jsFiles.find((file) => /^app-.*\.js$/.test(file)) ||
+    jsFiles[0] ||
+    null;
+
+  const entryCss =
+    cssFiles.find((file) => /^styles-.*\.css$/.test(file)) ||
+    cssFiles.find((file) => /^app-.*\.css$/.test(file)) ||
+    cssFiles[0] ||
+    null;
+
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    ${entryCss ? `<link rel="stylesheet" href="/assets/${entryCss}" />` : ""}
+  </head>
+  <body>
+    <div id="root"></div>
+    ${entryJs ? `<script type="module" src="/assets/${entryJs}"></script>` : ""}
+  </body>
+</html>
+`;
+
+  fs.writeFileSync(indexHtmlPath, html);
+  console.log(`Created ${indexHtmlPath}`);
+} else {
+  console.log(`Found existing ${indexHtmlPath}`);
+}
