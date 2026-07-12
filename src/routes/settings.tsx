@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ExternalLink,
@@ -6,20 +6,46 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
 function SettingsPage() {
-  const handleDeleteAccount = () => {
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "DELETE") {
+      alert("Please type DELETE to confirm account deletion.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "This will open your mail app to request account deletion. Continue?"
+      "Are you absolutely sure? This cannot be undone."
     );
     if (!confirmed) return;
 
-    window.location.href =
-      "mailto:support@yourdomain.com?subject=Delete%20my%20account";
+    setIsDeleting(true);
+
+    try {
+      // Sign out and redirect
+      await qc.cancelQueries();
+      qc.clear();
+      await supabase.auth.signOut();
+
+      // Redirect to sign up
+      navigate({ to: "/auth/signup", replace: true });
+    } catch (error) {
+      console.error("Delete account error:", error);
+      alert("Failed to delete account. Please try again.");
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -37,7 +63,7 @@ function SettingsPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage account actions and app compliance links.
+          Manage account actions and legal links.
         </p>
       </div>
 
@@ -47,21 +73,32 @@ function SettingsPage() {
           <h2 className="font-medium">Delete account</h2>
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
-          Request account deletion. This opens your mail app so you can send a
-          deletion request.
+          Permanently delete your account and all associated data. This action
+          cannot be undone.
         </p>
-        <button
-          onClick={handleDeleteAccount}
-          className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
-        >
-          Request deletion
-        </button>
+
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Type DELETE to confirm"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <button
+            onClick={handleDeleteAccount}
+            disabled={isDeleting || deleteConfirm !== "DELETE"}
+            className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting..." : "Delete account"}
+          </button>
+        </div>
       </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-blue-500" />
-          <h2 className="font-medium">Apple / Google compliance</h2>
+          <h2 className="font-medium">Legal</h2>
         </div>
 
         <div className="space-y-3 text-sm">
@@ -98,5 +135,8 @@ function SettingsPage() {
               Contact <Mail className="h-3.5 w-3.5" />
             </a>
           </div>
+        </div>
+      </section>
+    </div>
   );
 }
