@@ -218,14 +218,8 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
 
     if (data.amount <= withdrawable) {
       remainingToWithdraw = 0;
-    }
-
-    if (remainingToWithdraw > 0) {
-      const lockedValue = locked.reduce((s: number, t: any) => s + Number(t.current_balance ?? t.remaining), 0);
-      if (remainingToWithdraw > lockedValue) {
-        throw new Error("Insufficient growing account funds to break tranche cycle");
-      }
-
+    } else if (remainingToWithdraw > 0 && data.confirmBreak) {
+      // User confirmed breaking tranche; try to deduct from growing tranches
       let lockedNeed = remainingToWithdraw;
       for (const tranche of locked) {
         if (lockedNeed <= 0) break;
@@ -235,8 +229,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
         await updateTranche(tranche, take);
         lockedNeed -= take;
       }
-
-      remainingToWithdraw = 0;
+      remainingToWithdraw = Math.max(0, lockedNeed);
     }
 
     if (remainingToWithdraw > 0) {
