@@ -192,6 +192,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     }
 
     let remainingToWithdraw = data.amount;
+    let growthRealized = 0;
 
     const updateTranche = async (t: any, currentValueTake: number) => {
       const principal = Number(t.remaining);
@@ -223,10 +224,41 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       let lockedNeed = remainingToWithdraw;
       for (const tranche of locked) {
         if (lockedNeed <= 0) break;
-        const currentValue = Number(tranche.current_balance ?? tranche.remaining);
-        if (currentValue <= 0) continue;
-        const take = Math.min(currentValue, lockedNeed);
-        await updateTranche(tranche, take);
+
+        const principal = Number(tranche.remaining);
+        const totalValue = Number(tranche.current_balance ?? tranche.remaining);
+        if (totalValue <= 0) continue;
+
+        const take = Math.min(totalValue, lockedNeed);
+
+        // Calculate growth realization
+        const growthInTranche = Math.max(0, totalValue - principal);
+        const ratio = totalValue > 0 ? take / totalValue : 1;
+        const growthToRealize = Math.round(growthInTranche * ratio * 100) / 100;
+
+        if (growthToRealize > 0) {
+          growthRealized += growthToRealize;
+          // Log the growth realization
+          await supabase.from("transactions").insert({
+            user_id: userId,
+            type: "bonus",
+            currency: data.currency,
+            amount: growthToRealize,
+            status: "completed",
+            description: `Early growth realization (cycle break)`,
+          });
+        }
+
+        // Update tranche proportionally
+        const principalTake = Math.min(principal, Math.round(principal * ratio * 100) / 100);
+        await supabase
+          .from("deposit_tranches")
+          .update({
+            remaining: Math.max(0, principal - principalTake),
+            current_balance: Math.max(0, totalValue - take),
+          })
+          .eq("id", tranche.id);
+
         lockedNeed -= take;
       }
       remainingToWithdraw = Math.max(0, lockedNeed);
@@ -246,10 +278,10 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     });
     if (tx.error) throw new Error(tx.error.message);
 
-    // Reserve the funds immediately
+    // Reserve the funds immediately (including any realized growth)
     await supabase
       .from("wallets")
-      .update({ balance: current - data.amount, updated_at: new Date().toISOString() })
+      .update({ balance: current + growthRealized - data.amount, updated_at: new Date().toISOString() })
       .eq("user_id", userId)
       .eq("currency", data.currency);
 
