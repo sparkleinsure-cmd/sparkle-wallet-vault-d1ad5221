@@ -1,9 +1,9 @@
-# Fix Wallet Balance and Tranche Math Discrepancies
+# Fix Wallet Math and Enable Growth Realization on Early Withdrawal
 
-The user reported that after withdrawing "everything", some cycles remained and the total value math was incorrect. Research revealed that:
-1. `requestWithdrawal` allows taking from the "growth" (incentives) of locked tranches, but since growth isn't yet in the wallet balance, it over-deducts from the principal in the wallet.
-2. Breaking a tranche should forfeit rewards, but the current code allows keeping/withdrawing a portion of them.
-3. The daily incentive script uses the initial deposit amount instead of the remaining principal, leading to accelerating growth on partially withdrawn tranches.
+The user reported that even after "withdrawing everything", some cycles and growth remained. Analysis shows:
+1. Users can currently only withdraw principal from locked tranches; any accrued growth (1% daily) remains "trapped" in the tranche if not forfeited.
+2. Older logic allowed withdrawing principal while leaving growth behind, creating "ghost" balances.
+3. Users expect to be able to withdraw the *full* current value (principal + growth) when they choose to break a cycle (subject to an admin-applied penalty later).
 
 ## Proposed Changes
 
@@ -11,69 +11,33 @@ The user reported that after withdrawing "everything", some cycles remained and 
 
 #### [wallet.functions.ts](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/src/lib/wallet.functions.ts)
 
-- Update `requestWithdrawal` to properly forfeit rewards when breaking a tranche.
-- Ensure `current_balance` is reset to `remaining` (principal) for all tranches being broken.
-- This ensures that only principal is withdrawn and `wallets.balance` remains in sync with the sum of `remaining` principal in tranches.
-
-```typescript
-// Proposed change in requestWithdrawal:
-    if (data.amount <= withdrawable) {
-      remainingToWithdraw = 0;
-    } else if (remainingToWithdraw > 0 && data.confirmBreak) {
-      let lockedNeed = remainingToWithdraw;
-      for (const tranche of locked) {
-        if (lockedNeed <= 0) break;
-
-        // Reset growth before taking from principal
-        const principal = Number(tranche.remaining);
-        await supabase
-          .from("deposit_tranches")
-          .update({ current_balance: principal })
-          .eq("id", tranche.id);
-
-        // Now currentValue and principal are equal (forfeited growth)
-        const take = Math.min(principal, lockedNeed);
-        await updateTranche(tranche, take);
-        lockedNeed -= take;
-      }
-      remainingToWithdraw = Math.max(0, lockedNeed);
-    }
-```
+- Update `requestWithdrawal` to allow taking from the full `current_balance` of locked tranches if `confirmBreak` is true.
+- "Realize" any growth taken by adding it to the `wallets.balance` before the final deduction.
+- Add a transaction record for realized growth to maintain a clear audit trail.
+- Ensure that if a tranche is "emptied" (principal taken), any remaining growth is also cleared.
 
 ### Database Logic
 
-#### [NEW] [20260716190000_fix_incentive_calculation.sql](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/supabase/migrations/20260716190000_fix_incentive_calculation.sql)
+#### [NEW] [20260716203000_cleanup_ghost_balances.sql](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/supabase/migrations/20260716203000_cleanup_ghost_balances.sql)
 
-- Update `apply_daily_tranche_incentive` to calculate 1% based on `remaining` principal instead of the initial `amount`.
+- Sync `current_balance` with `remaining` for all locked tranches where principal has been fully withdrawn to remove "ghost" growth.
 
 ```sql
-CREATE OR REPLACE FUNCTION public.apply_daily_tranche_incentive()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  -- 1% daily incentive on REMAINING principal of locked tranches
-  UPDATE public.deposit_tranches
-  SET current_balance = current_balance + (remaining * 0.01)
-  WHERE status = 'locked'
-    AND maturity_date > now()
-    AND remaining > 0;
-
-  -- ... (rest of the maturation logic stays the same)
-END;
-$$;
+-- Cleanup: any locked tranche with no remaining principal should have no growth
+UPDATE public.deposit_tranches
+SET current_balance = 0
+WHERE status = 'locked' AND remaining <= 0;
 ```
 
 ## Verification Plan
 
 ### Automated Tests
-- I will run the existing project build to ensure no regressions: `npm run build`
-- I will verify the SQL function logic by manually checking the migration file.
+- Run `npm run build` to ensure no regressions.
 
 ### Manual Verification
-- I will simulate a withdrawal that breaks a tranche and verify:
-    1. The tranche `current_balance` is reset to `remaining` before the deduction.
-    2. The `wallets.balance` is reduced by exactly the principal amount taken.
-    3. The `Total Value` in the UI (calculated from `balance + growth`) remains consistent.
-- I will verify the daily incentive script change by inspecting the SQL.
+- Simulate a withdrawal that exceeds principal but is within current balance (principal + growth).
+- Verify:
+    1. Wallet balance is correctly adjusted (Growth added, then total amount deducted).
+    2. A "Growth realization" transaction appears in the history.
+    3. The tranche is correctly updated or removed.
+    4. The "Total Value" math remains solid.
