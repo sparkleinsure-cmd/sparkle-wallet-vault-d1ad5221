@@ -184,22 +184,67 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     const now = Date.now();
     const matured = tranches.filter((t: any) => new Date(t.maturity_date).getTime() <= now);
     const locked = tranches.filter((t: any) => new Date(t.maturity_date).getTime() > now);
-    const maturedTotal = matured.reduce((s: number, t: any) => s + Number(t.remaining), 0);
-    if (data.amount > maturedTotal && !data.confirmBreak) {
+    const lockedRemaining = locked.reduce((s: number, t: any) => s + Number(t.remaining), 0);
+    const withdrawable = current - lockedRemaining;
+
+    if (data.amount > withdrawable && !data.confirmBreak) {
       throw new Error("BREAKS_TRANCHE");
     }
 
-    let need = data.amount;
-    const queue = [...matured, ...locked];
-    for (const t of queue) {
-      if (need <= 0) break;
-      const rem = Number(t.remaining);
-      const take = Math.min(rem, need);
+    let remainingToWithdraw = data.amount;
+
+    const updateTranche = async (t: any, currentValueTake: number) => {
+      const principal = Number(t.remaining);
+      const currentValue = Number(t.current_balance ?? t.remaining);
+      const ratio = currentValue > 0 ? currentValueTake / currentValue : 1;
+      const principalTake = Math.min(principal, Math.round(principal * ratio * 100) / 100);
       await supabase
         .from("deposit_tranches")
-        .update({ remaining: rem - take })
+        .update({
+          remaining: Math.max(0, principal - principalTake),
+          current_balance: Math.max(0, currentValue - currentValueTake),
+        })
         .eq("id", t.id);
-      need -= take;
+    };
+
+    for (const tranche of matured) {
+      if (remainingToWithdraw <= 0) break;
+      const currentValue = Number(tranche.current_balance ?? tranche.remaining);
+      const take = Math.min(currentValue, remainingToWithdraw);
+      if (take <= 0) continue;
+      await updateTranche(tranche, take);
+      remainingToWithdraw -= take;
+    }
+
+    let penalty = 0;
+    if (data.amount <= withdrawable) {
+      remainingToWithdraw = 0;
+    }
+
+    if (remainingToWithdraw > 0) {
+      const lockedValue = locked.reduce((s: number, t: any) => s + Number(t.current_balance ?? t.remaining), 0);
+      const breakAmount = remainingToWithdraw;
+      const lockedDeduction = Number((breakAmount / 0.95).toFixed(2));
+      penalty = Number((lockedDeduction - breakAmount).toFixed(2));
+      if (lockedDeduction > lockedValue) {
+        throw new Error("Insufficient growing account funds to break tranche cycle");
+      }
+
+      let lockedNeed = lockedDeduction;
+      for (const tranche of locked) {
+        if (lockedNeed <= 0) break;
+        const currentValue = Number(tranche.current_balance ?? tranche.remaining);
+        if (currentValue <= 0) continue;
+        const take = Math.min(currentValue, lockedNeed);
+        await updateTranche(tranche, take);
+        lockedNeed -= take;
+      }
+
+      remainingToWithdraw = 0;
+    }
+
+    if (remainingToWithdraw > 0) {
+      throw new Error("Unable to withdraw requested amount");
     }
 
     const tx = await supabase.from("transactions").insert({
@@ -208,7 +253,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       currency: data.currency,
       amount: data.amount,
       status: "pending",
-      description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}`,
+      description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}${penalty > 0 ? ` · 5% early break fee applied` : ""}`,
     });
     if (tx.error) throw new Error(tx.error.message);
 

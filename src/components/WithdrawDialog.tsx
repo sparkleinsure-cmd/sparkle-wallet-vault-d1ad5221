@@ -80,7 +80,8 @@ export function WithdrawDialog({
                 <AlertTriangle className="h-4 w-4" /> Warning
               </div>
               Withdrawing {formatMoney(Number(amount), currency)} will break an active,
-              growing deposit tranche and forfeit its cycle rewards. Do you want to proceed?
+              growing deposit tranche and forfeit its cycle rewards. A flat 5% penalty
+              fee will be applied to the amount taken from the growing account.
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setBreakConfirm(false)} disabled={loading}>

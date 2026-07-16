@@ -60,6 +60,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
           const Icon = t.type === "deposit" ? ArrowDownToLine : t.type === "withdrawal" ? ArrowUpFromLine : Sparkles;
           const sign = t.type === "withdrawal" ? "-" : "+";
           const color = t.type === "withdrawal" ? "text-rose-600" : "text-emerald-600";
+          const statusLabel = t.type === "deposit" && t.status === "pending" ? "Topped up" : t.status;
           return (
             <div key={t.id} className="flex items-center justify-between py-3">
               <div className="flex items-center gap-3">
@@ -69,7 +70,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
                 <div>
                   <div className="text-sm font-medium">{t.description ?? t.type}</div>
                   <div className="text-xs text-muted-foreground">
-                    {format(new Date(t.created_at), "d MMM yyyy · HH:mm")} · {t.status}
+                    {format(new Date(t.created_at), "d MMM yyyy · HH:mm")} · {statusLabel}
                   </div>
                 </div>
               </div>

@@ -63,16 +63,17 @@ export function StatementDialog({
 
   const downloadCsv = () => {
     const rows = [["Date", "Type", "Currency", "Amount", "Status", "Description"]];
-    filtered().forEach((t) =>
+    filtered().forEach((t) => {
+      const statusLabel = t.type === "deposit" && t.status === "pending" ? "Topped up" : t.status;
       rows.push([
         format(new Date(t.created_at), "yyyy-MM-dd HH:mm"),
         t.type,
         t.currency,
         String(t.amount),
-        t.status,
+        statusLabel,
         (t.description ?? "").replace(/,/g, " "),
-      ]),
-    );
+      ]);
+    });
     const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `sparkle-statement-${range}d.csv`, "text/csv;charset=utf-8");
   };
@@ -101,11 +102,11 @@ export function StatementDialog({
 
     filtered().forEach((t) => {
       if (y > 275) { doc.addPage(); y = 20; }
+      const statusLabel = t.type === "deposit" && t.status === "pending" ? "Topped up" : t.status;
       doc.text(format(new Date(t.created_at), "yyyy-MM-dd"), 16, y);
       doc.text(t.type, 60, y);
       doc.text((t.description ?? "").slice(0, 40), 90, y);
-      const sign = t.type === "withdrawal" ? "-" : "+";
-      doc.text(`${sign}${formatMoney(Number(t.amount), t.currency as Currency)}`, 194, y, { align: "right" });
+      doc.text(statusLabel, 140, y);
       y += 6;
     });
 
