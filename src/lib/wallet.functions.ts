@@ -172,7 +172,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     const current = Number(wallet.data?.balance ?? 0);
     if (current < data.amount) throw new Error("Insufficient balance");
 
-    // FIFO tranche deduction: oldest matured first, then locked only if confirmBreak
+    // Withdraw matured funds first; if the user confirms breaking a cycle, use locked funds too.
     const tranchesRes = await supabase
       .from("deposit_tranches")
       .select("*")
@@ -216,21 +216,17 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       remainingToWithdraw -= take;
     }
 
-    let penalty = 0;
     if (data.amount <= withdrawable) {
       remainingToWithdraw = 0;
     }
 
     if (remainingToWithdraw > 0) {
       const lockedValue = locked.reduce((s: number, t: any) => s + Number(t.current_balance ?? t.remaining), 0);
-      const breakAmount = remainingToWithdraw;
-      const lockedDeduction = Number((breakAmount / 0.95).toFixed(2));
-      penalty = Number((lockedDeduction - breakAmount).toFixed(2));
-      if (lockedDeduction > lockedValue) {
+      if (remainingToWithdraw > lockedValue) {
         throw new Error("Insufficient growing account funds to break tranche cycle");
       }
 
-      let lockedNeed = lockedDeduction;
+      let lockedNeed = remainingToWithdraw;
       for (const tranche of locked) {
         if (lockedNeed <= 0) break;
         const currentValue = Number(tranche.current_balance ?? tranche.remaining);
@@ -253,7 +249,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       currency: data.currency,
       amount: data.amount,
       status: "pending",
-      description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}${penalty > 0 ? ` · 5% early break fee applied` : ""}`,
+      description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}`,
     });
     if (tx.error) throw new Error(tx.error.message);
 
