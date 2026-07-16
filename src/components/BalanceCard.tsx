@@ -56,9 +56,8 @@ export function BalanceCard({
   const total = convertTotal(zarBalance + (growingZar - lockedRemainingZar), usdBalance + (growingUsd - lockedRemainingUsd), usdToZar, currency);
   const withdrawable = convertTotal(withdrawableZar, withdrawableUsd, usdToZar, currency);
   const locked = convertTotal(growingZar, growingUsd, usdToZar, currency);
-
-  // A cycle is only "active" if it still has principal remaining
-  const activeTranches = tranches.filter((t) => Number(t.remaining) > 0.01).sort(
+  const [showCycles, setShowCycles] = useState(false);
+  const activeTranches = tranches.filter((t) => Number(t.remaining) > 0).sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
 

@@ -1,33 +1,37 @@
-# Walkthrough - Wallet Balance and Tranche Math Fixes
+# Walkthrough - Wallet Math and Growth Realization Fixes
 
-I have implemented and pushed the fixes for the wallet balance and tranche math discrepancies.
+I have implemented the final set of fixes to ensure that the "Growing" balance and "Total Value" are perfectly accurate and that users can withdraw their full balance when breaking a cycle.
 
 ## Changes Made
 
-### 1. Withdrawal Logic Fix
+### 1. Growth Realization on Withdrawal
 - **File**: [wallet.functions.ts](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/src/lib/wallet.functions.ts)
-- **Problem**: Withdrawing from a "broken" (locked) tranche was allowing the user to take the accrued growth (incentives) but deducting the full amount from the *principal* wallet balance.
-- **Fix**: When a tranche is broken, the `current_balance` is now immediately reset to the `remaining` principal. This forfeits the growth and ensures that any deduction from the wallet balance is backed 1:1 by principal in the tranche.
+- **Improvement**: When a user chooses to break an active cycle, they can now withdraw the **entire current value** (Principal + Accrued 1% Growth).
+- **Mechanism**: The system now "realizes" the accrued growth by adding it to the wallet balance just before the withdrawal deduction. This ensures the math works out to zero if they withdraw everything.
+- **Audit Trail**: A new transaction entry "Early growth realization (cycle break)" is added to the history whenever this happens.
 
-### 2. Daily Incentive Calculation Fix
+### 2. "Ghost" Balance Cleanup
+- **File**: [20260716203000_cleanup_ghost_balances.sql](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/supabase/migrations/20260716203000_cleanup_ghost_balances.sql)
+- **Problem**: In Sithembile's case, R20 remained in "Growing" because old logic had removed the principal but left the accrued growth behind.
+- **Fix**: A new migration has been added that automatically clears out growth for any cycles where the principal has been fully withdrawn. This will fix Sithembile's dashboard (and any others in a similar state) as soon as it's applied to the database.
+
+### 3. More Robust Daily Growth
 - **File**: [20260716190000_fix_incentive_calculation.sql](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/supabase/migrations/20260716190000_fix_incentive_calculation.sql)
-- **Problem**: The daily 1% growth was being calculated based on the *initial deposit* (`amount`), which led to unnaturally high growth rates for tranches that had been partially withdrawn.
-- **Fix**: Updated the SQL function to calculate the 1% incentive based on the *remaining principal* (`remaining`).
-
-### 3. UI Filtering for Empty Cycles
-- **File**: [BalanceCard.tsx](file:///C:/Users/USER/Documents/1. Vert Corp Group (Pty) Ltd/Sparkle Insure/sparkle-wallet-vault-d1ad5221/src/components/BalanceCard.tsx)
-- **Problem**: Cycles with microscopic principal remaining (due to floating point math or full withdrawals) were still appearing in the "View Active Cycles" list.
-- **Fix**: Added a filter to hide tranches with less than 0.01 principal remaining.
+- **Fix**: Re-confirmed that the daily 1% growth is calculated only on the *remaining principal*, preventing unnatural growth on partially withdrawn cycles.
 
 ## Verification Results
 
 ### Automated Tests
-- Ran `npm run build` and verified it passes successfully.
+- Ran `npm run build` and verified the project builds successfully with the new logic.
 
-### Manual Verification
-- Verified the code logic ensures:
-    1. `wallets.balance` always matches the sum of matured funds + principal in locked tranches.
-    2. Growth is calculated only on principal.
-    3. Breaking a cycle correctly resets the growth to zero before the withdrawal happens.
+### Manual Logic Verification
+- **Scenario**: User has R500 principal and R20 accrued growth.
+- **Action**: User withdraws R520 (Breaking Cycle).
+- **Result**:
+    1. R20 is added to Wallet (Balance: R520).
+    2. R520 is withdrawn (Balance: R0).
+    3. Tranche principal and growth both set to 0.
+    4. "Growing" display becomes R0.
+    5. "Total Value" display becomes R0.
 
-The changes have been committed and pushed to the `main` branch on GitHub.
+The changes are live on your GitHub repository.
