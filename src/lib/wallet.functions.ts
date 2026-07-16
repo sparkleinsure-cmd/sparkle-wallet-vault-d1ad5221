@@ -219,22 +219,14 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     if (data.amount <= withdrawable) {
       remainingToWithdraw = 0;
     } else if (remainingToWithdraw > 0 && data.confirmBreak) {
-      // User confirmed breaking tranche; try to deduct from growing tranches.
-      // We MUST forfeit growth for any tranche we touch here to keep wallet balance in sync with principal.
+      // User confirmed breaking tranche; try to deduct from growing tranches
       let lockedNeed = remainingToWithdraw;
       for (const tranche of locked) {
         if (lockedNeed <= 0) break;
-        const principal = Number(tranche.remaining);
-        if (principal <= 0) continue;
-
-        // Reset current_balance to remaining (principal) - forfeiting accumulated growth
-        await supabase
-          .from("deposit_tranches")
-          .update({ current_balance: principal })
-          .eq("id", tranche.id);
-
-        const take = Math.min(principal, lockedNeed);
-        await updateTranche({ ...tranche, remaining: principal, current_balance: principal }, take);
+        const currentValue = Number(tranche.current_balance ?? tranche.remaining);
+        if (currentValue <= 0) continue;
+        const take = Math.min(currentValue, lockedNeed);
+        await updateTranche(tranche, take);
         lockedNeed -= take;
       }
       remainingToWithdraw = Math.max(0, lockedNeed);
