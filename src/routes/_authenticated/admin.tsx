@@ -5,6 +5,7 @@ import {
   adminLookupUser,
   adminCreditBonus,
   adminSeedDemo,
+  adminListPendingKyc,
   adminListPendingDeposits,
   adminGetProofUrl,
   adminVerifyDeposit,
@@ -38,6 +39,7 @@ function AdminPage() {
   const lookup = adminLookupUser;
   const credit = adminCreditBonus;
   const seed = adminSeedDemo;
+  const listPendingKyc = adminListPendingKyc;
   const listPending = adminListPendingDeposits;
   const getProof = adminGetProofUrl;
   const verifyDep = adminVerifyDeposit;
@@ -54,6 +56,12 @@ function AdminPage() {
     queryKey: ["admin-pending-deposits"],
     queryFn: () => listPending(),
     enabled: !!me?.roles.includes("admin"),
+  });
+  const { data: pendingKyc, refetch: refetchPendingKyc } = useQuery({
+    queryKey: ["admin-pending-kyc"],
+    queryFn: () => listPendingKyc(),
+    enabled: !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
   });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
@@ -113,6 +121,44 @@ function AdminPage() {
             <Database className="mr-2 h-4 w-4" /> Demo seeding disabled
           </Button>
         </div>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
+            <Bell className="mr-2 h-4 w-4 text-primary" />
+            Pending KYC reviews
+            {pendingKyc?.reviews.length ? (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                {pendingKyc.reviews.length}
+              </span>
+            ) : null}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">Review the banking confirmation and selfie before enabling withdrawals.</p>
+          {!pendingKyc?.reviews.length ? (
+            <p className="text-sm text-muted-foreground">No KYC documents are waiting for review.</p>
+          ) : (
+            <div className="space-y-3">
+              {pendingKyc.reviews.map((review: any) => (
+                <PendingKycRow
+                  key={review.id}
+                  review={review}
+                  onOpenDocument={async (path) => {
+                    try {
+                      const { url } = await getKycProof({ data: { path } });
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    } catch (error: any) { toast.error(error.message); }
+                  }}
+                  onReview={async (status) => {
+                    try {
+                      await setKycStatus({ data: { userId: review.id, status } });
+                      toast.success(status === "verified" ? "KYC approved" : "KYC declined");
+                      refetchPendingKyc();
+                    } catch (error: any) { toast.error(error.message); }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-4 flex items-center font-display text-lg font-semibold">
@@ -448,6 +494,58 @@ function WithdrawalRow({
           }}
         >
           <CheckCircle2 className="mr-2 h-4 w-4" /> Mark completed
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PendingKycRow({
+  review,
+  onOpenDocument,
+  onReview,
+}: {
+  review: any;
+  onOpenDocument: (path: string) => Promise<void>;
+  onReview: (status: "verified" | "rejected") => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<"verified" | "rejected" | null>(null);
+
+  const reviewKyc = async (status: "verified" | "rejected") => {
+    setBusy(status);
+    try {
+      await onReview(status);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-display text-base font-semibold">
+            {review.first_name} {review.surname}{" "}
+            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{review.account_id}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {review.email} {review.phone ? `· ${review.phone}` : ""}
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">Submitted for review</div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.proof_url)}>
+          <FileDown className="mr-2 h-4 w-4" /> Open banking confirmation
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.selfie_url)}>
+          <FileDown className="mr-2 h-4 w-4" /> Open selfie
+        </Button>
+        <Button size="sm" className="gradient-brand text-white" disabled={busy !== null} onClick={() => reviewKyc("verified")}>
+          {busy === "verified" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Approve KYC
+        </Button>
+        <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => reviewKyc("rejected")}>
+          {busy === "rejected" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Decline KYC
         </Button>
       </div>
     </div>

@@ -218,6 +218,20 @@ serve(async (req) => {
         return json({ data: { ok: true } });
       }
 
+      case "adminListPendingKyc": {
+        await assertAdmin(supabase, userId);
+        const reviews = await supabase
+          .from("profiles")
+          .select("id, account_id, first_name, surname, email, phone, proof_url, selfie_url, created_at")
+          .eq("kyc_status", "pending")
+          .not("proof_url", "is", null)
+          .not("selfie_url", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (reviews.error) throw new Error(reviews.error.message);
+        return json({ data: { reviews: reviews.data ?? [] } });
+      }
+
       case "sendOtps": {
         await supabase.from("otp_codes").update({ consumed: true }).eq("user_id", userId).eq("consumed", false);
         const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -332,7 +346,7 @@ serve(async (req) => {
         const corrected = data.correctedAmount == null ? Number(tx.data.amount) : requireAmount(data.correctedAmount);
         const delta = corrected - Number(tx.data.amount);
         const note = typeof data.note === "string" ? data.note.slice(0, 300) : "";
-        const updated = await supabase.from("transactions").update({ status: "completed", description: `Verified by admin${note ? ` — ${note}` : ""}` }).eq("id", txId);
+        const updated = await supabase.from("transactions").update({ status: "completed", description: `Deposit verified by admin${note ? ` — ${note}` : ""}` }).eq("id", txId);
         if (updated.error) throw new Error(updated.error.message);
         await supabase.from("deposit_tranches").update({ approved: true, created_at: new Date().toISOString(), maturity_date: new Date(Date.now() + 30 * 86_400_000).toISOString(), ...(delta !== 0 ? { amount: corrected, remaining: corrected, current_balance: corrected } : {}) }).eq("transaction_id", txId);
         if (delta !== 0) { const wallet = await supabase.from("wallets").select("balance").eq("user_id", tx.data.user_id).eq("currency", tx.data.currency).maybeSingle(); const next = Number(wallet.data?.balance ?? 0) + delta; const upd = await supabase.from("wallets").update({ balance: next, updated_at: new Date().toISOString() }).eq("user_id", tx.data.user_id).eq("currency", tx.data.currency); if (upd.error) throw new Error(upd.error.message); const adjustment = await supabase.from("transactions").insert({ user_id: tx.data.user_id, type: "adjustment", currency: tx.data.currency, amount: delta, status: "completed", reference: tx.data.reference, description: `Admin correction on deposit${note ? ` — ${note}` : ""}` }); if (adjustment.error) throw new Error(adjustment.error.message); }

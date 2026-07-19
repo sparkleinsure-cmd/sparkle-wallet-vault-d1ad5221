@@ -280,7 +280,7 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
     // Mark deposit tx completed at original amount, add adjustment tx for delta
     await context.supabase
       .from("transactions")
-      .update({ status: "completed", description: `Verified by admin${data.note ? ` — ${data.note}` : ""}` })
+      .update({ status: "completed", description: `Deposit verified by admin${data.note ? ` — ${data.note}` : ""}` })
       .eq("id", data.txId);
 
     // Approve the linked tranche and reset the 30-day cycle to start from approval

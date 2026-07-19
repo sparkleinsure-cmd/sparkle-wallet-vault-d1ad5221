@@ -33,6 +33,7 @@ export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string }>) => call<any>("adminCreditBonus", data);
 export const adminListActiveTranches = ({ data }: Input<{ accountId: string; currency: string }>) => call<any>("adminListActiveTranches", data);
 export const adminSeedDemo = () => call<any>("adminSeedDemo");
+export const adminListPendingKyc = () => call<any>("adminListPendingKyc");
 export const adminListPendingDeposits = () => call<any>("adminListPendingDeposits");
 export const adminGetProofUrl = ({ data }: Input<{ path: string }>) => call<any>("adminGetProofUrl", data);
 export const adminGetKycProofUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetKycProofUrl", data);
