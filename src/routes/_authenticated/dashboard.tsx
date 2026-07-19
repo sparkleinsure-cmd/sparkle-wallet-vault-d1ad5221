@@ -110,7 +110,6 @@ function DashboardPage() {
       <StatementDialog
         open={sOpen}
         onOpenChange={setSOpen}
-        transactions={data.transactions as any}
         accountId={profile.account_id}
         fullName={`${profile.first_name} ${profile.surname}`}
       />
