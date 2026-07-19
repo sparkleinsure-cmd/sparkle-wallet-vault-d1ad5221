@@ -85,6 +85,19 @@ serve(async (req) => {
         return json({ data: { profile: profileRes.data, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
       }
 
+      case "getAccountHealth": {
+        const since = new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
+        const [snapshots, rewards] = await Promise.all([
+          supabase.from("wallet_health_daily").select("snapshot_date, withdrawable_zar, wallet_health, daily_top_ups, withdrawals, penalties, reward_credit").eq("user_id", userId).gte("snapshot_date", since).order("snapshot_date"),
+          supabase.from("wallet_reward_credits").select("points, value, qualifying_date").eq("user_id", userId).order("qualifying_date", { ascending: false }).limit(20),
+        ]);
+        if (snapshots.error) throw new Error(snapshots.error.message);
+        if (rewards.error) throw new Error(rewards.error.message);
+        const profile = await supabase.from("profiles").select("reward_points, reward_streak_days").eq("id", userId).maybeSingle();
+        if (profile.error) throw new Error(profile.error.message);
+        return json({ data: { snapshots: snapshots.data ?? [], rewards: rewards.data ?? [], points: profile.data?.reward_points ?? 0, streakDays: profile.data?.reward_streak_days ?? 0 } });
+      }
+
       case "getStatementTransactions": {
         const days = Number(data.days);
         if (![7, 30, 90].includes(days)) throw new Error("Invalid statement period");

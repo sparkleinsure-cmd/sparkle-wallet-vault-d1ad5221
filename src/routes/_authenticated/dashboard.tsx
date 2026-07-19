@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMe, setPrimaryCurrency } from "@/lib/app-api";
+import { getAccountHealth, getMe, setPrimaryCurrency } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionsTable } from "@/components/TransactionsTable";
 import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
-import { type Currency, formatMoney, CURRENCY_META } from "@/lib/currency";
+import { AccountHealthCard } from "@/components/AccountHealthCard";
+import { type Currency } from "@/lib/currency";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -18,12 +19,18 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 function DashboardPage() {
   const fetchMe = getMe;
+  const fetchHealth = getAccountHealth;
   const setCcy = setPrimaryCurrency;
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["me"],
     queryFn: () => fetchMe(),
+  });
+  const { data: health } = useQuery({
+    queryKey: ["account-health"],
+    queryFn: () => fetchHealth(),
+    enabled: !!data?.profile,
   });
 
   const [depOpen, setDepOpen] = useState(false);
@@ -78,14 +85,7 @@ function DashboardPage() {
         />
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="glass-card rounded-2xl p-4">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">
-              {CURRENCY_META.ZAR.name}
-            </div>
-            <div className="mt-1 font-display text-xl font-bold">
-              {formatMoney(Number(data.wallets.find((w) => w.currency === "ZAR")?.balance ?? 0), "ZAR")}
-            </div>
-          </div>
+          <AccountHealthCard health={health} currentWithdrawable={withdrawable} />
           <div className="glass-card rounded-2xl p-4">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Registered payout details</div>
             {profile.bank_name && profile.bank_account_number ? (

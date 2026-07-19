@@ -19,6 +19,7 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
 }
 
 export const getMe = () => call<any>("getMe");
+export const getAccountHealth = () => call<any>("getAccountHealth");
 export const getStatementTransactions = ({ data }: Input<{ days: number }>) => call<any[]>("getStatementTransactions", data);
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
 export const setPayoutDetails = ({ data }: Input<{ bankName: string; accountNumber: string }>) => call<{ ok: true }>("setPayoutDetails", data);
