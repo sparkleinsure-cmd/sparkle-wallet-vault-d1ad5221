@@ -325,7 +325,10 @@ serve(async (req) => {
       case "adminGetKycProofUrl": {
         await assertAdmin(supabase, userId);
         const path = requireString(data.path, "verification file", 1, 500);
-        const signed = await supabase.storage.from("kyc").createSignedUrl(path, 300);
+        // KYC files deliberately have no administrator storage policy. Create
+        // a five-minute link with the server-only client after authorizing the
+        // caller above, rather than making these sensitive files readable.
+        const signed = await admin.storage.from("kyc").createSignedUrl(path, 300);
         if (signed.error) throw new Error(signed.error.message);
         return json({ data: { url: signed.data.signedUrl } });
       }
