@@ -48,7 +48,7 @@ export function AccountHealthCard({ health, currentWithdrawable }: { health: any
         </div>
 
         <div className="mt-4 h-40">
-          {data.length >= 2 ? (
+          {data.length >= 1 ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 8, right: 6, left: -20, bottom: 0 }}>
                 <defs>
@@ -58,11 +58,11 @@ export function AccountHealthCard({ health, currentWithdrawable }: { health: any
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                 <YAxis hide domain={["dataMin - 100", "dataMax + 100"]} />
                 <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid rgba(11,129,152,.2)", background: "rgba(255,255,255,.96)" }} formatter={(value: number) => [formatMoney(value, "ZAR"), "Withdrawable"]} />
-                <Area type="monotone" dataKey="withdrawable" stroke="#0b8198" strokeWidth={3} fill="url(#healthFill)" />
+                <Area type="monotone" dataKey="withdrawable" stroke="#0b8198" strokeWidth={3} fill="url(#healthFill)" dot={{ r: 5, fill: "#0b8198", strokeWidth: 0 }} activeDot={{ r: 6 }} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-primary/5 px-5 text-center text-sm text-muted-foreground">Your daily health graph starts after the next nightly account update.</div>
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-primary/5 px-5 text-center text-sm text-muted-foreground">Your live wallet activity will appear here as transactions are completed.</div>
           )}
         </div>
 
