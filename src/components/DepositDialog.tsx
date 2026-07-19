@@ -50,7 +50,7 @@ export function DepositDialog({
           <DialogTitle>Deposit to your wallet</DialogTitle>
           <DialogDescription>
             Make an EFT/bank deposit to the account below, then upload your proof of payment.
-            Your balance updates instantly once your receipt is uploaded — the admin will verify shortly.
+            Your deposit will appear as pending until an administrator verifies that the funds have cleared.
           </DialogDescription>
         </DialogHeader>
 
@@ -62,8 +62,8 @@ export function DepositDialog({
         </div>
 
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-          <strong>Please use an immediate payment.</strong> Standard EFTs may reflect in your wallet
-          straight away, but the admin will only approve them once the funds have cleared into our
+          <strong>Please use an immediate payment.</strong> Deposits remain pending until an administrator
+          confirms that funds have cleared into our
           bank account. Your 30-day growth cycle starts on the approval date — e.g. if you deposit on
           the 12th and the admin approves on the 13th, your start date will be the 13th, not the 12th.
         </div>
@@ -87,7 +87,7 @@ export function DepositDialog({
               });
               if (up.error) throw up.error;
               await credit({ data: { amount: amt, currency, reference: ref, proofUrl: path } });
-              toast.success(`Deposit recorded — ${currency} ${amt.toFixed(2)} added. Pending admin verification.`);
+              toast.success(`Deposit submitted — ${currency} ${amt.toFixed(2)} is pending administrator verification.`);
               await qc.invalidateQueries();
               setAmount(""); setFile(null);
               onOpenChange(false);
@@ -135,7 +135,7 @@ export function DepositDialog({
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit deposit
           </Button>
           <p className="text-center text-[11px] text-muted-foreground">
-            Your funds appear immediately. An admin verifies your receipt and can adjust the amount if it differs.
+            Pending deposits are not available to withdraw and do not begin a growth cycle until approved.
           </p>
         </form>
       </DialogContent>

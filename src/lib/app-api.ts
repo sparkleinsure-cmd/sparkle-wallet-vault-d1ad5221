@@ -23,6 +23,8 @@ export const getStatementTransactions = ({ data }: Input<{ days: number }>) => c
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; bankName?: string; accountNumber?: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
+export const submitKycReview = ({ data }: Input<{ proofPath: string }>) => call<{ ok: true; status: "pending" }>("submitKycReview", data);
+export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
 export const sendOtps = () => call<{ ok: true; delivered: boolean }>("sendOtps");
 export const verifyOtps = ({ data }: Input<{ emailCode: string }>) => call<{ ok: true }>("verifyOtps", data);
 
@@ -32,7 +34,9 @@ export const adminListActiveTranches = ({ data }: Input<{ accountId: string; cur
 export const adminSeedDemo = () => call<any>("adminSeedDemo");
 export const adminListPendingDeposits = () => call<any>("adminListPendingDeposits");
 export const adminGetProofUrl = ({ data }: Input<{ path: string }>) => call<any>("adminGetProofUrl", data);
+export const adminGetKycProofUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetKycProofUrl", data);
 export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmount?: number; note?: string }>) => call<any>("adminVerifyDeposit", data);
 export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: string }>) => call<any>("adminDeclineDeposit", data);
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
+export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);

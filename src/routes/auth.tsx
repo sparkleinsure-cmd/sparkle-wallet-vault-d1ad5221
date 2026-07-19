@@ -2,12 +2,12 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { submitKycReview } from "@/lib/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { lovable } from "@/integrations/lovable";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
@@ -94,10 +94,11 @@ function AuthPage() {
             variant="outline"
             className="w-full"
             onClick={async () => {
-              const r = await lovable.auth.signInWithOAuth("google", {
-                redirect_uri: window.location.origin,
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: { redirectTo: window.location.origin },
               });
-              if (r.error) toast.error(r.error.message);
+              if (error) toast.error(error.message);
             }}
           >
             Continue with Google
@@ -255,7 +256,7 @@ function SignUpForm() {
           if (up.error) {
             toast.error(`Proof upload failed: ${up.error.message}`);
           } else {
-            await supabase.from("profiles").update({ proof_url: path }).eq("id", data.user.id);
+            await submitKycReview({ data: { proofPath: path } });
           }
         }
         setLoading(false);

@@ -49,8 +49,8 @@ function Index() {
               </Button>
             </div>
             <div className="mt-10 flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Bank-grade encryption</span>
-              <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> KYC verified</span>
+              <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Private account access</span>
+              <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Identity review process</span>
               <span className="inline-flex items-center gap-1.5"><Globe2 className="h-3.5 w-3.5" /> ZAR + USD</span>
             </div>
           </div>
@@ -92,7 +92,7 @@ function Index() {
         <section className="mt-28 grid gap-6 md:grid-cols-3">
           {[
             { icon: Wallet, t: "One wallet, dual currency", d: "Hold and spend in ZAR and USD without leaving the app." },
-            { icon: ShieldCheck, t: "KYC-verified accounts", d: "Every account is verified with an email OTP for total peace of mind." },
+            { icon: ShieldCheck, t: "Reviewed account access", d: "Identity submissions are reviewed before withdrawals are enabled." },
             { icon: Sparkles, t: "Simple bank deposits", d: "Transfer funds via EFT or bank deposit to the provided account details to fund your wallet." },
           ].map(({ icon: Icon, t, d }) => (
             <div key={t} className="glass-card rounded-2xl p-6">

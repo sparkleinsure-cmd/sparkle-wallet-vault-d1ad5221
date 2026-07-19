@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteMyAccount } from "@/lib/app-api";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/settings")({
@@ -29,22 +30,7 @@ function SettingsPage() {
     setIsDeleting(true);
 
     try {
-      const { data } = await supabase.auth.getUser();
-      const userId = data.user?.id ?? "";
-      const userEmail = data.user?.email ?? "";
-
-      const subject = encodeURIComponent("Account deletion request");
-      const bodyLines = [
-        "Please delete my account and all associated data.",
-        `User ID: ${userId}`,
-        `Email: ${userEmail}`,
-        "",
-        "Thank you,",
-      ];
-      const body = encodeURIComponent(bodyLines.join("\n"));
-
-      // Open user's mail client to send deletion request to support
-      window.location.href = `mailto:support@sparkleinsure.com?subject=${subject}&body=${body}`;
+      await deleteMyAccount();
 
       // Sign out locally and clear client cache
       await qc.cancelQueries();
@@ -55,7 +41,7 @@ function SettingsPage() {
       navigate({ to: "/auth/signup", replace: true });
     } catch (error) {
       console.error("Delete account error:", error);
-      alert("Failed to initiate account deletion request. Please contact support@sparkleinsure.com");
+      alert("We could not delete your account. Please contact support@sparkleinsure.com if the problem continues.");
       setIsDeleting(false);
     }
   };

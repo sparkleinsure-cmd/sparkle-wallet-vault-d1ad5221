@@ -101,7 +101,7 @@ serve(async (req) => {
 
       case "setPrimaryCurrency": {
         const currency = requireCurrency(data.currency);
-        const { error } = await supabase.from("profiles").update({ primary_currency: currency }).eq("id", userId);
+        const { error } = await supabase.rpc("set_primary_currency_secure", { p_currency: currency });
         if (error) throw new Error(error.message);
         return json({ data: { ok: true } });
       }
@@ -111,6 +111,13 @@ serve(async (req) => {
         const currency = requireCurrency(data.currency);
         const reference = requireString(data.reference, "reference", 3, 200);
         const proofUrl = requireString(data.proofUrl, "proof", 3, 500);
+        const secureDeposit = await supabase.rpc("submit_deposit_secure", {
+          p_amount: amount, p_currency: currency, p_reference: reference, p_proof_path: proofUrl,
+        });
+        if (secureDeposit.error) throw new Error(secureDeposit.error.message);
+        return json({ data: { ok: true, transactionId: secureDeposit.data, status: "pending" } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         const existing = await supabase.from("transactions").select("id").eq("reference", reference).eq("user_id", userId).maybeSingle();
         if (existing.data) return json({ data: { ok: true, deduped: true } });
         const wallet = await supabase.from("wallets").select("balance").eq("user_id", userId).eq("currency", currency).maybeSingle();
@@ -128,6 +135,16 @@ serve(async (req) => {
       case "requestWithdrawal": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
+        const secureBankName = typeof data.bankName === "string" ? data.bankName.slice(0, 200) : "n/a";
+        const secureAccountNumber = typeof data.accountNumber === "string" ? data.accountNumber.slice(0, 100) : "n/a";
+        const secureWithdrawal = await supabase.rpc("request_withdrawal_secure", {
+          p_amount: amount, p_currency: currency, p_bank_name: secureBankName,
+          p_account_number: secureAccountNumber, p_confirm_break: data.confirmBreak === true,
+        });
+        if (secureWithdrawal.error) throw new Error(secureWithdrawal.error.message);
+        return json({ data: { ok: true, ...(secureWithdrawal.data ?? {}) } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         const profile = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
         if (!profile.data) throw new Error("Profile not found");
         const wallet = await supabase.from("wallets").select("balance").eq("user_id", userId).eq("currency", currency).maybeSingle();
@@ -169,6 +186,37 @@ serve(async (req) => {
         return json({ data: { ok: true, grossAmount: amount, penalty, payoutAmount } });
       }
 
+      case "submitKycReview": {
+        const proofPath = requireString(data.proofPath, "verification file", 3, 500);
+        const { error } = await supabase.rpc("submit_kyc_review", { p_proof_path: proofPath });
+        if (error) throw new Error(error.message);
+        return json({ data: { ok: true, status: "pending" } });
+      }
+
+      case "deleteMyAccount": {
+        // Remove private files first; deleting the auth user then cascades the
+        // profile, wallet, transaction, tranche, and role records.
+        for (const bucket of ["kyc", "deposits"]) {
+          const listed = await admin.storage.from(bucket).list(userId, { limit: 1000 });
+          if (!listed.error && listed.data?.length) {
+            await admin.storage.from(bucket).remove(listed.data.map((file) => `${userId}/${file.name}`));
+          }
+        }
+        const deleted = await admin.auth.admin.deleteUser(userId, true);
+        if (deleted.error) throw new Error(deleted.error.message);
+        return json({ data: { ok: true } });
+      }
+
+      case "adminSetKycStatus": {
+        await assertAdmin(supabase, userId);
+        const targetUserId = requireString(data.userId, "user", 36, 36);
+        const status = data.status === "verified" ? "verified" : data.status === "rejected" ? "rejected" : null;
+        if (!status) throw new Error("Invalid status");
+        const { error } = await supabase.rpc("admin_set_kyc_status", { p_user_id: targetUserId, p_status: status });
+        if (error) throw new Error(error.message);
+        return json({ data: { ok: true } });
+      }
+
       case "sendOtps": {
         await supabase.from("otp_codes").update({ consumed: true }).eq("user_id", userId).eq("consumed", false);
         const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -180,16 +228,7 @@ serve(async (req) => {
       }
 
       case "verifyOtps": {
-        const code = requireString(data.emailCode, "verification code", 6, 6);
-        const codes = await supabase.from("otp_codes").select("*").eq("user_id", userId).eq("consumed", false).eq("channel", "email");
-        if (codes.error) throw new Error(codes.error.message);
-        const pending = codes.data?.[0];
-        if (!pending) throw new Error("No verification code pending. Please resend.");
-        if (pending.code !== code) throw new Error("Verification code is incorrect.");
-        await supabase.from("otp_codes").update({ consumed: true }).eq("id", pending.id);
-        const { error } = await supabase.from("profiles").update({ kyc_status: "verified" }).eq("id", userId);
-        if (error) throw new Error(error.message);
-        return json({ data: { ok: true } });
+        throw new Error("Identity reviews are approved by an administrator after document review");
       }
 
       case "adminLookupUser": {
@@ -227,6 +266,15 @@ serve(async (req) => {
         const profile = await supabase.from("profiles").select("id").eq("account_id", accountId).maybeSingle();
         if (!profile.data) throw new Error("Account not found");
         const targetId = profile.data.id;
+        const secureCredit = await supabase.rpc("admin_credit_bonus_secure", {
+          p_user_id: targetId, p_currency: currency, p_amount: amount,
+          p_note: typeof data.note === "string" ? data.note.slice(0, 200) : null,
+          p_hold_rule: holdRule, p_parent_tranche_id: holdRule === "attach" ? requireString(data.parentTrancheId, "tranche", 1, 100) : null,
+        });
+        if (secureCredit.error) throw new Error(secureCredit.error.message);
+        return json({ data: { ok: true, balance: secureCredit.data } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         let maturityDate = new Date().toISOString(); let parentTrancheId: string | null = null;
         if (holdRule === "attach") { const parentId = requireString(data.parentTrancheId, "tranche", 1, 100); const parent = await supabase.from("deposit_tranches").select("*").eq("id", parentId).eq("user_id", targetId).maybeSingle(); if (!parent.data) throw new Error("Tranche not found"); maturityDate = parent.data.maturity_date; parentTrancheId = parent.data.id; }
         const wallet = await supabase.from("wallets").select("balance").eq("user_id", targetId).eq("currency", currency).maybeSingle();
@@ -259,9 +307,25 @@ serve(async (req) => {
         return json({ data: { url: signed.data.signedUrl } });
       }
 
+      case "adminGetKycProofUrl": {
+        await assertAdmin(supabase, userId);
+        const path = requireString(data.path, "verification file", 1, 500);
+        const signed = await supabase.storage.from("kyc").createSignedUrl(path, 300);
+        if (signed.error) throw new Error(signed.error.message);
+        return json({ data: { url: signed.data.signedUrl } });
+      }
+
       case "adminVerifyDeposit": {
         await assertAdmin(supabase, userId);
         const txId = requireString(data.txId, "transaction", 36, 36);
+        const approved = await supabase.rpc("admin_approve_deposit_secure", {
+          p_tx_id: txId, p_corrected_amount: data.correctedAmount == null ? null : requireAmount(data.correctedAmount),
+          p_note: typeof data.note === "string" ? data.note.slice(0, 300) : null,
+        });
+        if (approved.error) throw new Error(approved.error.message);
+        return json({ data: { ok: true, approvedAmount: approved.data } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         const tx = await supabase.from("transactions").select("*").eq("id", txId).maybeSingle();
         if (!tx.data || tx.data.status !== "pending") throw new Error("Transaction not found or already processed");
         const corrected = data.correctedAmount == null ? Number(tx.data.amount) : requireAmount(data.correctedAmount);
@@ -277,6 +341,13 @@ serve(async (req) => {
       case "adminDeclineDeposit": {
         await assertAdmin(supabase, userId);
         const txId = requireString(data.txId, "transaction", 36, 36);
+        const declined = await supabase.rpc("admin_decline_deposit_secure", {
+          p_tx_id: txId, p_reason: typeof data.reason === "string" ? data.reason.slice(0, 300) : null,
+        });
+        if (declined.error) throw new Error(declined.error.message);
+        return json({ data: { ok: true } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         const tx = await supabase.from("transactions").select("*").eq("id", txId).maybeSingle();
         if (!tx.data || tx.data.type !== "deposit" || tx.data.status !== "pending") throw new Error("Transaction not found or already processed");
         const wallet = await supabase.from("wallets").select("balance").eq("user_id", tx.data.user_id).eq("currency", tx.data.currency).maybeSingle();
@@ -302,6 +373,13 @@ serve(async (req) => {
       case "adminCompleteWithdrawal": {
         await assertAdmin(supabase, userId);
         const txId = requireString(data.txId, "transaction", 36, 36);
+        const completed = await supabase.rpc("admin_complete_withdrawal_secure", {
+          p_tx_id: txId, p_note: typeof data.note === "string" ? data.note.slice(0, 300) : null,
+        });
+        if (completed.error) throw new Error(completed.error.message);
+        return json({ data: { ok: true } });
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         const tx = await supabase.from("transactions").select("*").eq("id", txId).maybeSingle();
         if (!tx.data || tx.data.type !== "withdrawal" || tx.data.status !== "pending") throw new Error("Withdrawal not found or already processed");
         const note = typeof data.note === "string" ? data.note.slice(0, 300) : "";
@@ -311,6 +389,9 @@ serve(async (req) => {
       }
 
       case "adminSeedDemo": {
+        throw new Error("Demo seeding is disabled in production");
+
+        /* Legacy flow retained below for historical source context; unreachable. */
         await assertAdmin(supabase, userId);
         const existing = await admin.from("profiles").select("id", { count: "exact", head: true }).like("email", "demo%@sparkleinsure.demo");
         if ((existing.count ?? 0) >= 5) return json({ data: { ok: true, seeded: 0 } });

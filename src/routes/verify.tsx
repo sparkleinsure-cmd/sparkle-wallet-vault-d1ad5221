@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { submitKycReview } from "@/lib/app-api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -98,12 +99,8 @@ function VerifyPage() {
         contentType: captured.type || "image/jpeg",
       });
       if (up.error) throw new Error(up.error.message);
-      const upd = await supabase
-        .from("profiles")
-        .update({ kyc_status: "verified" })
-        .eq("id", uid);
-      if (upd.error) throw new Error(upd.error.message);
-      toast.success("Selfie verified. Welcome!");
+      await submitKycReview({ data: { proofPath: path } });
+      toast.success("Identity review submitted. Your account will be activated after administrator review.");
       navigate({ to: "/dashboard" });
     } catch (err: any) {
       toast.error(err.message);
@@ -122,7 +119,7 @@ function VerifyPage() {
           <div>
             <h1 className="font-display text-xl font-bold">Selfie verification</h1>
             <p className="text-sm text-muted-foreground">
-              Take a quick selfie so we can confirm it's you. This unlocks your wallet instantly.
+              Submit a selfie for an administrator to review before your wallet is activated.
             </p>
           </div>
         </div>
@@ -172,7 +169,7 @@ function VerifyPage() {
               </Button>
               <Button onClick={submit} disabled={loading} className="gradient-brand text-white">
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <ShieldCheck className="mr-2 h-4 w-4" /> Submit & verify
+                <ShieldCheck className="mr-2 h-4 w-4" /> Submit for review
               </Button>
             </div>
           )}

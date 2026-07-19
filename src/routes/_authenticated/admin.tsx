@@ -12,6 +12,8 @@ import {
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
   adminListActiveTranches,
+  adminSetKycStatus,
+  adminGetKycProofUrl,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { Card } from "@/components/ui/card";
@@ -43,6 +45,8 @@ function AdminPage() {
   const listWithdrawals = adminListPendingWithdrawals;
   const completeWithdrawal = adminCompleteWithdrawal;
   const listTranches = adminListActiveTranches;
+  const setKycStatus = adminSetKycStatus;
+  const getKycProof = adminGetKycProofUrl;
   const navigate = useNavigate();
 
   const { data: me, isLoading } = useQuery({ queryKey: ["me"], queryFn: () => fetchMe() });
@@ -97,6 +101,8 @@ function AdminPage() {
           </div>
           <Button
             variant="outline"
+            disabled
+            title="Demo seeding is disabled in production"
             onClick={async () => {
               try {
                 const r = await seed();
@@ -104,7 +110,7 @@ function AdminPage() {
               } catch (e: any) { toast.error(e.message); }
             }}
           >
-            <Database className="mr-2 h-4 w-4" /> Seed demo users
+            <Database className="mr-2 h-4 w-4" /> Demo seeding disabled
           </Button>
         </div>
 
@@ -221,6 +227,22 @@ function AdminPage() {
               <div className="text-sm text-muted-foreground">
                 {target.profile.email} · {target.profile.phone} · ID {target.profile.account_id}
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Identity review: <strong className="uppercase text-foreground">{target.profile.kyc_status}</strong></span>
+              {target.profile.proof_url ? <Button size="sm" variant="outline" onClick={async () => {
+                try { const { url } = await getKycProof({ data: { path: target.profile.proof_url } }); window.open(url, "_blank", "noopener,noreferrer"); }
+                catch (error: any) { toast.error(error.message); }
+              }}>Open submission</Button> : null}
+              {target.profile.kyc_status !== "verified" ? <Button size="sm" variant="outline" onClick={async () => {
+                try { await setKycStatus({ data: { userId: target.profile.id, status: "verified" } }); toast.success("Identity review approved"); setTarget(await lookup({ data: { accountId: target.profile.account_id } })); }
+                catch (error: any) { toast.error(error.message); }
+              }}>Approve identity</Button> : null}
+              {target.profile.kyc_status !== "rejected" ? <Button size="sm" variant="ghost" onClick={async () => {
+                try { await setKycStatus({ data: { userId: target.profile.id, status: "rejected" } }); toast.success("Identity review rejected"); setTarget(await lookup({ data: { accountId: target.profile.account_id } })); }
+                catch (error: any) { toast.error(error.message); }
+              }}>Reject identity</Button> : null}
             </div>
 
             <div className="grid gap-3 md:grid-cols-4">
