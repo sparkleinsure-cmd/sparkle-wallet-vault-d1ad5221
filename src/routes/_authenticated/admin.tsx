@@ -235,6 +235,10 @@ function AdminPage() {
                 try { const { url } = await getKycProof({ data: { path: target.profile.proof_url } }); window.open(url, "_blank", "noopener,noreferrer"); }
                 catch (error: any) { toast.error(error.message); }
               }}>Open submission</Button> : null}
+              {target.profile.selfie_url ? <Button size="sm" variant="outline" onClick={async () => {
+                try { const { url } = await getKycProof({ data: { path: target.profile.selfie_url } }); window.open(url, "_blank", "noopener,noreferrer"); }
+                catch (error: any) { toast.error(error.message); }
+              }}>Open selfie</Button> : null}
               {target.profile.kyc_status !== "verified" ? <Button size="sm" variant="outline" onClick={async () => {
                 try { await setKycStatus({ data: { userId: target.profile.id, status: "verified" } }); toast.success("Identity review approved"); setTarget(await lookup({ data: { accountId: target.profile.account_id } })); }
                 catch (error: any) { toast.error(error.message); }

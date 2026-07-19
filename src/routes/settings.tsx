@@ -3,8 +3,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMyAccount } from "@/lib/app-api";
-import { useQueryClient } from "@tanstack/react-query";
+import { deleteMyAccount, getMe, submitKycReview } from "@/lib/app-api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -13,8 +17,40 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bankProof, setBankProof] = useState<File | null>(null);
+  const [selfie, setSelfie] = useState<File | null>(null);
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+
+  const submitKyc = async () => {
+    if (!bankProof || !selfie) return toast.error("Upload both your proof of banking details and a selfie.");
+    if (bankProof.size > 5 * 1024 * 1024 || selfie.size > 8 * 1024 * 1024) return toast.error("Banking proof must be under 5MB and selfie under 8MB.");
+    setIsSubmittingKyc(true);
+    try {
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      if (!userId) throw new Error("Please sign in again.");
+      const stamp = Date.now();
+      const bankPath = `${userId}/banking-${stamp}.${bankProof.name.split(".").pop() || "bin"}`;
+      const selfiePath = `${userId}/selfie-${stamp}.${selfie.name.split(".").pop() || "jpg"}`;
+      const [bankUpload, selfieUpload] = await Promise.all([
+        supabase.storage.from("kyc").upload(bankPath, bankProof, { upsert: false, contentType: bankProof.type || "application/octet-stream" }),
+        supabase.storage.from("kyc").upload(selfiePath, selfie, { upsert: false, contentType: selfie.type || "image/jpeg" }),
+      ]);
+      if (bankUpload.error) throw bankUpload.error;
+      if (selfieUpload.error) throw selfieUpload.error;
+      await submitKycReview({ data: { bankProofPath: bankPath, selfiePath } });
+      toast.success("KYC documents submitted for administrator review.");
+      setBankProof(null); setSelfie(null);
+      await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (error: any) {
+      toast.error(error.message ?? "Unable to submit KYC documents.");
+    } finally {
+      setIsSubmittingKyc(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirm !== "DELETE") {
@@ -59,6 +95,30 @@ function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage account actions and legal links.</p>
       </div>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <h2 className="font-medium">Withdrawal verification</h2>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          You can use Sparkle and deposit immediately. Submit these documents before requesting a withdrawal; an administrator must approve them first.
+          {me?.profile?.kyc_status ? ` Current status: ${me.profile.kyc_status}.` : ""}
+        </p>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="bank-proof">Proof of banking details</Label>
+            <Input id="bank-proof" type="file" accept="image/*,application/pdf" onChange={(event) => setBankProof(event.target.files?.[0] ?? null)} />
+          </div>
+          <div>
+            <Label htmlFor="kyc-selfie">Photo of yourself</Label>
+            <Input id="kyc-selfie" type="file" accept="image/*" onChange={(event) => setSelfie(event.target.files?.[0] ?? null)} />
+          </div>
+          <Button type="button" onClick={submitKyc} disabled={isSubmittingKyc} className="gradient-brand text-white">
+            {isSubmittingKyc ? "Submitting…" : "Submit documents for review"}
+          </Button>
+        </div>
+      </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">

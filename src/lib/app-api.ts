@@ -23,7 +23,8 @@ export const getStatementTransactions = ({ data }: Input<{ days: number }>) => c
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; bankName?: string; accountNumber?: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
-export const submitKycReview = ({ data }: Input<{ proofPath: string }>) => call<{ ok: true; status: "pending" }>("submitKycReview", data);
+export const submitKycReview = ({ data }: Input<{ bankProofPath: string; selfiePath: string }>) =>
+  call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
 export const sendOtps = () => call<{ ok: true; delivered: boolean }>("sendOtps");
 export const verifyOtps = ({ data }: Input<{ emailCode: string }>) => call<{ ok: true }>("verifyOtps", data);

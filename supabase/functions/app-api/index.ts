@@ -187,8 +187,9 @@ serve(async (req) => {
       }
 
       case "submitKycReview": {
-        const proofPath = requireString(data.proofPath, "verification file", 3, 500);
-        const { error } = await supabase.rpc("submit_kyc_review", { p_proof_path: proofPath });
+        const bankProofPath = requireString(data.bankProofPath, "banking proof", 3, 500);
+        const selfiePath = requireString(data.selfiePath, "selfie", 3, 500);
+        const { error } = await supabase.rpc("submit_kyc_review", { p_proof_path: bankProofPath, p_selfie_path: selfiePath });
         if (error) throw new Error(error.message);
         return json({ data: { ok: true, status: "pending" } });
       }

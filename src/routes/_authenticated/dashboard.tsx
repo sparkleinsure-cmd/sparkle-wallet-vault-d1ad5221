@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMe, setPrimaryCurrency } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
@@ -8,7 +8,7 @@ import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { CURRENCIES, type Currency, formatMoney, CURRENCY_META } from "@/lib/currency";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -20,7 +20,6 @@ function DashboardPage() {
   const fetchMe = getMe;
   const setCcy = setPrimaryCurrency;
   const qc = useQueryClient();
-  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ["me"],
@@ -30,12 +29,6 @@ function DashboardPage() {
   const [depOpen, setDepOpen] = useState(false);
   const [wOpen, setWOpen] = useState(false);
   const [sOpen, setSOpen] = useState(false);
-
-  useEffect(() => {
-    if (data?.profile && data.profile.kyc_status !== "verified") {
-      navigate({ to: "/verify" });
-    }
-  }, [data, navigate]);
 
   if (isLoading || !data?.profile) {
     return (

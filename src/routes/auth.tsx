@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { submitKycReview } from "@/lib/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,7 +215,6 @@ function SignUpForm() {
     phone: "",
     password: "",
   });
-  const [proof, setProof] = useState<File | null>(null);
 
   return (
     <form
@@ -225,9 +223,6 @@ function SignUpForm() {
         e.preventDefault();
         const parse = signupSchema.safeParse(form);
         if (!parse.success) return toast.error(parse.error.issues[0].message);
-        if (!proof) return toast.error("Please upload your proof of banking details.");
-        if (proof.size > 5 * 1024 * 1024) return toast.error("File must be under 5MB.");
-
         setLoading(true);
         const { data, error } = await supabase.auth.signUp({
           email: form.email,
@@ -257,18 +252,9 @@ function SignUpForm() {
           navigate({ to: "/auth", search: { mode: "signin" } });
           return;
         }
-        if (session) {
-          const path = `${data.user.id}/${Date.now()}-${proof.name}`;
-          const up = await supabase.storage.from("kyc").upload(path, proof, { upsert: true });
-          if (up.error) {
-            toast.error(`Proof upload failed: ${up.error.message}`);
-          } else {
-            await submitKycReview({ data: { proofPath: path } });
-          }
-        }
         setLoading(false);
-        toast.success("Account created. Complete your identity review to activate withdrawals.");
-        navigate({ to: "/verify" });
+        toast.success("Account created. You can add verification documents later in Settings before withdrawing.");
+        navigate({ to: "/dashboard" });
       }}
     >
       <div className="grid grid-cols-2 gap-3">
@@ -298,17 +284,6 @@ function SignUpForm() {
           value={form.password}
           onChange={(v) => setForm({ ...form, password: v })}
         />
-      </div>
-      <div>
-        <Label htmlFor="proof">Proof of banking details</Label>
-        <Input
-          id="proof"
-          type="file"
-          accept="image/*,application/pdf"
-          required
-          onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">PDF, PNG or JPG up to 5MB.</p>
       </div>
       <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create account
