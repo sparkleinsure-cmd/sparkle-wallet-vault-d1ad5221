@@ -17,8 +17,7 @@ export const adminLookupUser = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const profile = await supabaseAdmin
+    const profile = await context.supabase
       .from("profiles")
       .select("*")
       .eq("account_id", data.accountId.toUpperCase())
@@ -26,14 +25,14 @@ export const adminLookupUser = createServerFn({ method: "POST" })
     if (profile.error) throw new Error(profile.error.message);
     if (!profile.data) return { profile: null, wallets: [], transactions: [] };
     const [wallets, txs, tranches] = await Promise.all([
-      supabaseAdmin.from("wallets").select("*").eq("user_id", profile.data.id).order("currency"),
-      supabaseAdmin
+      context.supabase.from("wallets").select("*").eq("user_id", profile.data.id).order("currency"),
+      context.supabase
         .from("transactions")
         .select("*")
         .eq("user_id", profile.data.id)
         .order("created_at", { ascending: false })
         .limit(50),
-      supabaseAdmin
+      context.supabase
         .from("deposit_tranches")
         .select("*")
         .eq("user_id", profile.data.id)
@@ -64,8 +63,7 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const profile = await supabaseAdmin
+    const profile = await context.supabase
       .from("profiles")
       .select("id")
       .eq("account_id", data.accountId.toUpperCase())
@@ -77,7 +75,7 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
     let parentId: string | null = null;
     if (data.holdRule === "attach") {
       if (!data.parentTrancheId) throw new Error("Select a tranche to attach to");
-      const parent = await supabaseAdmin
+      const parent = await context.supabase
         .from("deposit_tranches")
         .select("*")
         .eq("id", data.parentTrancheId)
@@ -88,7 +86,7 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
       parentId = parent.data.id;
     }
 
-    const wallet = await supabaseAdmin
+    const wallet = await context.supabase
       .from("wallets")
       .select("balance")
       .eq("user_id", uid)
@@ -98,15 +96,15 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
     const next = current + data.amount;
 
     if (wallet.data) {
-      await supabaseAdmin
+      await context.supabase
         .from("wallets")
         .update({ balance: next, updated_at: new Date().toISOString() })
         .eq("user_id", uid)
         .eq("currency", data.currency);
     } else {
-      await supabaseAdmin.from("wallets").insert({ user_id: uid, currency: data.currency, balance: next });
+      await context.supabase.from("wallets").insert({ user_id: uid, currency: data.currency, balance: next });
     }
-    const tx = await supabaseAdmin.from("transactions").insert({
+    const tx = await context.supabase.from("transactions").insert({
       user_id: uid,
       type: "bonus",
       currency: data.currency,
@@ -115,7 +113,7 @@ export const adminCreditBonus = createServerFn({ method: "POST" })
       description: (data.note ?? "Bonus credit from admin") + (data.holdRule === "attach" ? " (attached to tranche)" : " (instant release)"),
     }).select("id").maybeSingle();
 
-    await supabaseAdmin.from("deposit_tranches").insert({
+    await context.supabase.from("deposit_tranches").insert({
       user_id: uid,
       currency: data.currency,
       amount: data.amount,
@@ -141,15 +139,14 @@ export const adminListActiveTranches = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const profile = await supabaseAdmin
+    const profile = await context.supabase
       .from("profiles")
       .select("id")
       .eq("account_id", data.accountId.toUpperCase())
       .maybeSingle();
     if (!profile.data) return { tranches: [] };
     const now = new Date().toISOString();
-    const t = await supabaseAdmin
+    const t = await context.supabase
       .from("deposit_tranches")
       .select("*")
       .eq("user_id", profile.data.id)
@@ -224,8 +221,7 @@ export const adminListPendingDeposits = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const txs = await supabaseAdmin
+    const txs = await context.supabase
       .from("transactions")
       .select("*")
       .eq("type", "deposit")
@@ -236,7 +232,7 @@ export const adminListPendingDeposits = createServerFn({ method: "GET" })
     const userIds = Array.from(new Set((txs.data ?? []).map((t) => t.user_id)));
     let profilesById: Record<string, any> = {};
     if (userIds.length) {
-      const p = await supabaseAdmin
+      const p = await context.supabase
         .from("profiles")
         .select("id, account_id, first_name, surname, email")
         .in("id", userIds);
@@ -251,8 +247,7 @@ export const adminGetProofUrl = createServerFn({ method: "POST" })
   .inputValidator((d: { path: string }) => z.object({ path: z.string().min(1).max(500) }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: signed, error } = await supabaseAdmin.storage
+    const { data: signed, error } = await context.supabase.storage
       .from("deposits")
       .createSignedUrl(data.path, 300);
     if (error) throw new Error(error.message);
@@ -270,8 +265,7 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const tx = await supabaseAdmin
+    const tx = await context.supabase
       .from("transactions")
       .select("*")
       .eq("id", data.txId)
@@ -284,7 +278,7 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
     const delta = corrected - original;
 
     // Mark deposit tx completed at original amount, add adjustment tx for delta
-    await supabaseAdmin
+    await context.supabase
       .from("transactions")
       .update({ status: "completed", description: `Verified by admin${data.note ? ` — ${data.note}` : ""}` })
       .eq("id", data.txId);
@@ -292,7 +286,7 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
     // Approve the linked tranche and reset the 30-day cycle to start from approval
     const approvedAt = new Date();
     const newMaturity = new Date(approvedAt.getTime() + 30 * 864e5).toISOString();
-    await supabaseAdmin
+    await context.supabase
       .from("deposit_tranches")
       .update({
         approved: true,
@@ -302,26 +296,26 @@ export const adminVerifyDeposit = createServerFn({ method: "POST" })
       .eq("transaction_id", data.txId);
 
     if (delta !== 0) {
-      const wallet = await supabaseAdmin
+      const wallet = await context.supabase
         .from("wallets")
         .select("balance")
         .eq("user_id", tx.data.user_id)
         .eq("currency", tx.data.currency)
         .maybeSingle();
       const current = Number(wallet.data?.balance ?? 0);
-      await supabaseAdmin
+      await context.supabase
         .from("wallets")
         .update({ balance: current + delta, updated_at: new Date().toISOString() })
         .eq("user_id", tx.data.user_id)
         .eq("currency", tx.data.currency);
 
       // Adjust the tranche principal to the corrected amount
-      await supabaseAdmin
+      await context.supabase
         .from("deposit_tranches")
         .update({ amount: corrected, remaining: corrected, current_balance: corrected })
         .eq("transaction_id", data.txId);
 
-      await supabaseAdmin.from("transactions").insert({
+      await context.supabase.from("transactions").insert({
         user_id: tx.data.user_id,
         type: "adjustment",
         currency: tx.data.currency,
@@ -341,8 +335,7 @@ export const adminDeclineDeposit = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const tx = await supabaseAdmin
+    const tx = await context.supabase
       .from("transactions")
       .select("*")
       .eq("id", data.txId)
@@ -354,27 +347,27 @@ export const adminDeclineDeposit = createServerFn({ method: "POST" })
     const amount = Number(tx.data.amount);
 
     // Remove the tranche created for this deposit
-    await supabaseAdmin
+    await context.supabase
       .from("deposit_tranches")
       .delete()
       .eq("transaction_id", data.txId);
 
     // Reverse the wallet credit
-    const wallet = await supabaseAdmin
+    const wallet = await context.supabase
       .from("wallets")
       .select("balance")
       .eq("user_id", tx.data.user_id)
       .eq("currency", tx.data.currency)
       .maybeSingle();
     const current = Number(wallet.data?.balance ?? 0);
-    await supabaseAdmin
+    await context.supabase
       .from("wallets")
       .update({ balance: Math.max(0, current - amount), updated_at: new Date().toISOString() })
       .eq("user_id", tx.data.user_id)
       .eq("currency", tx.data.currency);
 
     // Mark the deposit tx as declined
-    await supabaseAdmin
+    await context.supabase
       .from("transactions")
       .update({
         status: "declined" as any,
@@ -389,8 +382,7 @@ export const adminListPendingWithdrawals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const txs = await supabaseAdmin
+    const txs = await context.supabase
       .from("transactions")
       .select("*")
       .eq("type", "withdrawal")
@@ -401,7 +393,7 @@ export const adminListPendingWithdrawals = createServerFn({ method: "GET" })
     const userIds = Array.from(new Set((txs.data ?? []).map((t) => t.user_id)));
     let profilesById: Record<string, any> = {};
     if (userIds.length) {
-      const p = await supabaseAdmin
+      const p = await context.supabase
         .from("profiles")
         .select("id, account_id, first_name, surname, email, phone")
         .in("id", userIds);
@@ -418,8 +410,7 @@ export const adminCompleteWithdrawal = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const tx = await supabaseAdmin
+    const tx = await context.supabase
       .from("transactions")
       .select("*")
       .eq("id", data.txId)
@@ -427,7 +418,7 @@ export const adminCompleteWithdrawal = createServerFn({ method: "POST" })
     if (tx.error || !tx.data) throw new Error("Withdrawal not found");
     if (tx.data.type !== "withdrawal") throw new Error("Not a withdrawal");
     if (tx.data.status !== "pending") throw new Error("Already processed");
-    const upd = await supabaseAdmin
+    const upd = await context.supabase
       .from("transactions")
       .update({
         status: "completed",

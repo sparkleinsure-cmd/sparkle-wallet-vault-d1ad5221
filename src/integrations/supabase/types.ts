@@ -239,7 +239,7 @@ export type Database = {
       app_role: "admin" | "user"
       kyc_status: "pending" | "verified" | "rejected"
       tx_status: "pending" | "completed" | "failed" | "declined"
-      tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment"
+      tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment" | "fee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -370,7 +370,7 @@ export const Constants = {
       app_role: ["admin", "user"],
       kyc_status: ["pending", "verified", "rejected"],
       tx_status: ["pending", "completed", "failed", "declined"],
-      tx_type: ["deposit", "withdrawal", "bonus", "adjustment"],
+      tx_type: ["deposit", "withdrawal", "bonus", "adjustment", "fee"],
     },
   },
 } as const

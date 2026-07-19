@@ -1,10 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 
 const CURRENCIES = ["ZAR", "USD"] as const;
 
 const ADMIN_EMAIL = "sparkleinsure@gmail.com";
+type StatementTransaction = Pick<
+  Database["public"]["Tables"]["transactions"]["Row"],
+  "id" | "type" | "currency" | "amount" | "status" | "description" | "created_at"
+>;
 
 async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
   const resendKey = process.env.RESEND_API_KEY;
@@ -59,6 +64,35 @@ export const getMe = createServerFn({ method: "GET" })
       roles: (rolesRes.data ?? []).map((r) => r.role as string),
       tranches: tranchesRes.data ?? [],
     };
+  });
+
+export const getStatementTransactions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { days: number }) =>
+    z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const cutoff = new Date(Date.now() - data.days * 24 * 60 * 60 * 1000).toISOString();
+    const pageSize = 1_000;
+    const transactions: StatementTransaction[] = [];
+
+    // PostgREST limits result sets. Paginate so a statement is never silently
+    // truncated when a customer has more than the dashboard's preview rows.
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await context.supabase
+        .from("transactions")
+        .select("id, type, currency, amount, status, description, created_at")
+        .eq("user_id", context.userId)
+        .gte("created_at", cutoff)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (error) throw new Error(error.message);
+      transactions.push(...(page ?? []));
+      if (!page || page.length < pageSize) break;
+    }
+
+    return transactions;
   });
 
 export const setPrimaryCurrency = createServerFn({ method: "POST" })
@@ -192,20 +226,25 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     }
 
     let remainingToWithdraw = data.amount;
-    let growthRealized = 0;
 
     const updateTranche = async (t: any, currentValueTake: number) => {
       const principal = Number(t.remaining);
       const currentValue = Number(t.current_balance ?? t.remaining);
       const ratio = currentValue > 0 ? currentValueTake / currentValue : 1;
       const principalTake = Math.min(principal, Math.round(principal * ratio * 100) / 100);
-      await supabase
+      const nextRemaining = Math.max(0, principal - principalTake);
+      const nextBalance = Math.max(0, currentValue - currentValueTake);
+      const { error } = await supabase
         .from("deposit_tranches")
         .update({
-          remaining: Math.max(0, principal - principalTake),
-          current_balance: Math.max(0, currentValue - currentValueTake),
+          remaining: nextRemaining,
+          current_balance: nextBalance,
+          // A depleted tranche must no longer be eligible for the daily
+          // incentive job, even if an older scheduled function is still active.
+          ...(nextBalance === 0 ? { status: "liquidated" } : {}),
         })
         .eq("id", t.id);
+      if (error) throw new Error(error.message);
     };
 
     for (const tranche of matured) {
@@ -224,41 +263,10 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       let lockedNeed = remainingToWithdraw;
       for (const tranche of locked) {
         if (lockedNeed <= 0) break;
-
-        const principal = Number(tranche.remaining);
-        const totalValue = Number(tranche.current_balance ?? tranche.remaining);
-        if (totalValue <= 0) continue;
-
-        const take = Math.min(totalValue, lockedNeed);
-
-        // Calculate growth realization
-        const growthInTranche = Math.max(0, totalValue - principal);
-        const ratio = totalValue > 0 ? take / totalValue : 1;
-        const growthToRealize = Math.round(growthInTranche * ratio * 100) / 100;
-
-        if (growthToRealize > 0) {
-          growthRealized += growthToRealize;
-          // Log the growth realization
-          await supabase.from("transactions").insert({
-            user_id: userId,
-            type: "bonus",
-            currency: data.currency,
-            amount: growthToRealize,
-            status: "completed",
-            description: `Early growth realization (cycle break)`,
-          });
-        }
-
-        // Update tranche proportionally
-        const principalTake = Math.min(principal, Math.round(principal * ratio * 100) / 100);
-        await supabase
-          .from("deposit_tranches")
-          .update({
-            remaining: Math.max(0, principal - principalTake),
-            current_balance: Math.max(0, totalValue - take),
-          })
-          .eq("id", tranche.id);
-
+        const currentValue = Number(tranche.current_balance ?? tranche.remaining);
+        if (currentValue <= 0) continue;
+        const take = Math.min(currentValue, lockedNeed);
+        await updateTranche(tranche, take);
         lockedNeed -= take;
       }
       remainingToWithdraw = Math.max(0, lockedNeed);
@@ -268,22 +276,42 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       throw new Error("Unable to withdraw requested amount");
     }
 
+    // A cycle-break fee is withheld from the payout, not added on top of the
+    // amount reserved from the wallet. Only the still-growing portion is fee-bearing.
+    const growingAmount = Math.max(0, data.amount - withdrawable);
+    const penalty = Math.round(growingAmount * 0.05 * 100) / 100;
+    const payoutAmount = Math.round((data.amount - penalty) * 100) / 100;
+
     const tx = await supabase.from("transactions").insert({
       user_id: userId,
       type: "withdrawal",
       currency: data.currency,
-      amount: data.amount,
+      amount: payoutAmount,
       status: "pending",
       description: `Withdrawal request — Bank: ${data.bankName ?? "n/a"} · Acc: ${data.accountNumber ?? "n/a"}`,
-    });
+    }).select("id").maybeSingle();
     if (tx.error) throw new Error(tx.error.message);
 
-    // Reserve the funds immediately (including any realized growth)
-    await supabase
+    if (penalty > 0) {
+      const { error: penaltyError } = await supabase.from("transactions").insert({
+        user_id: userId,
+        type: "fee",
+        currency: data.currency,
+        amount: penalty,
+        status: "completed",
+        description: `Early withdrawal penalty (5%) on ${data.currency} ${growingAmount.toFixed(2)}. Included in the gross withdrawal amount.`,
+        reference: tx.data?.id ?? null,
+      });
+      if (penaltyError) throw new Error(penaltyError.message);
+    }
+
+    // Reserve the funds immediately
+    const { error: walletUpdateError } = await supabase
       .from("wallets")
-      .update({ balance: current + growthRealized - data.amount, updated_at: new Date().toISOString() })
+      .update({ balance: current - data.amount, updated_at: new Date().toISOString() })
       .eq("user_id", userId)
       .eq("currency", data.currency);
+    if (walletUpdateError) throw new Error(walletUpdateError.message);
 
     // Notify admin (background — best effort)
     const p = profile.data;
@@ -293,12 +321,14 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       `Name: ${p.first_name} ${p.surname}\n` +
       `Email: ${p.email}\n` +
       `Phone: ${p.phone}\n` +
-      `Amount: ${data.currency} ${data.amount.toFixed(2)}\n` +
+      `Gross withdrawal: ${data.currency} ${data.amount.toFixed(2)}\n` +
+      `Early withdrawal penalty: ${data.currency} ${penalty.toFixed(2)}\n` +
+      `Net bank payout: ${data.currency} ${payoutAmount.toFixed(2)}\n` +
       `Bank name: ${data.bankName ?? "(not provided)"}\n` +
       `Account number: ${data.accountNumber ?? "(not provided)"}\n`;
     await sendEmail(ADMIN_EMAIL, `Withdrawal request — ${p.account_id}`, body);
 
-    return { ok: true };
+    return { ok: true, grossAmount: data.amount, penalty, payoutAmount };
   });
 
 export const sendOtps = createServerFn({ method: "POST" })

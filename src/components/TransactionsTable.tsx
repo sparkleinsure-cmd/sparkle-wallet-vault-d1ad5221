@@ -3,11 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatMoney, type Currency } from "@/lib/currency";
 import { format } from "date-fns";
-import { ArrowDownToLine, ArrowUpFromLine, Sparkles, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, CircleDollarSign, Sparkles, Search } from "lucide-react";
 
 type Tx = {
   id: string;
-  type: "deposit" | "withdrawal" | "bonus";
+  type: string;
   currency: string;
   amount: number;
   status: string;
@@ -46,6 +46,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
               <SelectItem value="all">All types</SelectItem>
               <SelectItem value="deposit">Deposits</SelectItem>
               <SelectItem value="withdrawal">Withdrawals</SelectItem>
+              <SelectItem value="fee">Penalty fees</SelectItem>
               <SelectItem value="bonus">Bonuses</SelectItem>
             </SelectContent>
           </Select>
@@ -57,9 +58,13 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
           <div className="py-12 text-center text-sm text-muted-foreground">No transactions found.</div>
         )}
         {filtered.map((t) => {
-          const Icon = t.type === "deposit" ? ArrowDownToLine : t.type === "withdrawal" ? ArrowUpFromLine : Sparkles;
-          const sign = t.type === "withdrawal" ? "-" : "+";
-          const color = t.type === "withdrawal" ? "text-rose-600" : "text-emerald-600";
+          const isDebit = t.type === "withdrawal" || t.type === "fee";
+          const Icon = t.type === "deposit" ? ArrowDownToLine : t.type === "withdrawal" ? ArrowUpFromLine : t.type === "fee" ? CircleDollarSign : Sparkles;
+          const sign = isDebit ? "-" : "+";
+          const color = isDebit ? "text-rose-600" : "text-emerald-600";
+          if (t.type === "bonus" && (t.description ?? "").startsWith("Account top up")) {
+            t.status = "Topped up";
+          }
           const statusLabel = t.type === "deposit" && t.status === "pending" ? "Topped up" : t.status;
           return (
             <div key={t.id} className="flex items-center justify-between py-3">
