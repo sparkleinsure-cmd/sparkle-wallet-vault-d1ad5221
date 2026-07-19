@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vite build && node scripts/copy-output-to-dist.mjs",
+    "build": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vite build && node scripts/copy-output-to-dist.mjs && npx cap sync",
     "build:dev": "vite build --mode development",
-    "build:mobile": "npm run build && npx cap sync",
+    "build:mobile": "npm run build",
     "cap:sync": "npx cap sync",
     "preview": "vite preview",
     "lint": "eslint .",

@@ -30,10 +30,10 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      // Keep the native splash visible until the first React render. The
-      // animated in-app splash then provides a seamless hand-off on Android
-      // and iOS instead of exposing a blank WebView.
-      launchAutoHide: false,
+      // Do not let a failed or stale web bundle trap the user on the native
+      // launch screen. The React splash still provides the branded hand-off
+      // once the WebView is ready.
+      launchAutoHide: true,
       launchFadeOutDuration: 250,
       backgroundColor: "#F5F3EE",
       androidScaleType: "CENTER_INSIDE",
