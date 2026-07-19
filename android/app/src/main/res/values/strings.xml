@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Sparkle Insure</string>
-    <string name="title_activity_main">Sparkle Insure</string>
+    <string name="app_name">Sparkle</string>
+    <string name="title_activity_main">Sparkle</string>
     <string name="package_name">com.sparkleinsure.app</string>
     <string name="custom_url_scheme">com.sparkleinsure.app</string>
 </resources>

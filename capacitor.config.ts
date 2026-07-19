@@ -13,7 +13,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "com.sparkleinsure.app",
-  appName: "Sparkle Insure",
+  // Native launcher label only; the in-app product name remains Sparkle Insure.
+  appName: "Sparkle",
   // TanStack SPA mode emits its runnable static files here.
   webDir: "dist/client",
   bundledWebRuntime: false,
