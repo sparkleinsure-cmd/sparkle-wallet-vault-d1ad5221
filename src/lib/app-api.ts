@@ -21,8 +21,9 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
 export const getMe = () => call<any>("getMe");
 export const getStatementTransactions = ({ data }: Input<{ days: number }>) => call<any[]>("getStatementTransactions", data);
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
+export const setPayoutDetails = ({ data }: Input<{ bankName: string; accountNumber: string }>) => call<{ ok: true }>("setPayoutDetails", data);
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
-export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; bankName?: string; accountNumber?: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
+export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; bankName: string; accountNumber: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
 export const submitKycReview = ({ data }: Input<{ bankProofPath: string; selfiePath: string }>) =>
   call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");

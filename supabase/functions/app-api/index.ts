@@ -106,6 +106,17 @@ serve(async (req) => {
         return json({ data: { ok: true } });
       }
 
+      case "setPayoutDetails": {
+        const bankName = requireString(data.bankName, "bank name", 2, 100);
+        const accountNumber = requireString(data.accountNumber, "account number", 4, 40);
+        const { error } = await supabase.rpc("set_registered_payout_details", {
+          p_bank_name: bankName,
+          p_account_number: accountNumber,
+        });
+        if (error) throw new Error(error.message);
+        return json({ data: { ok: true } });
+      }
+
       case "creditDeposit": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
@@ -135,8 +146,8 @@ serve(async (req) => {
       case "requestWithdrawal": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
-        const secureBankName = typeof data.bankName === "string" ? data.bankName.slice(0, 200) : "n/a";
-        const secureAccountNumber = typeof data.accountNumber === "string" ? data.accountNumber.slice(0, 100) : "n/a";
+        const secureBankName = requireString(data.bankName, "bank name", 2, 100);
+        const secureAccountNumber = requireString(data.accountNumber, "account number", 4, 40);
         const secureWithdrawal = await supabase.rpc("request_withdrawal_secure", {
           p_amount: amount, p_currency: currency, p_bank_name: secureBankName,
           p_account_number: secureAccountNumber, p_confirm_break: data.confirmBreak === true,
@@ -383,7 +394,7 @@ serve(async (req) => {
         const txs = await supabase.from("transactions").select("*").eq("type", "withdrawal").eq("status", "pending").order("created_at", { ascending: false }).limit(200);
         if (txs.error) throw new Error(txs.error.message);
         const ids = [...new Set((txs.data ?? []).map((t: any) => t.user_id))];
-        const profiles = ids.length ? await supabase.from("profiles").select("id, account_id, first_name, surname, email, phone").in("id", ids) : { data: [] };
+        const profiles = ids.length ? await supabase.from("profiles").select("id, account_id, first_name, surname, email, phone, bank_name, bank_account_number").in("id", ids) : { data: [] };
         const byId = Object.fromEntries((profiles.data ?? []).map((p: any) => [p.id, p]));
         return json({ data: { withdrawals: (txs.data ?? []).map((t: any) => ({ ...t, profiles: byId[t.user_id] ?? null })) } });
       }

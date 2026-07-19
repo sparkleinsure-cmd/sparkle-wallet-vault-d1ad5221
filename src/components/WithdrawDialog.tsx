@@ -46,8 +46,8 @@ export function WithdrawDialog({
         data: {
           amount: amt,
           currency,
-          bankName: bankName.trim() || undefined,
-          accountNumber: accountNumber.trim() || undefined,
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
           confirmBreak,
         },
       });

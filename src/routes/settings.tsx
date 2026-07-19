@@ -1,9 +1,9 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMyAccount, getMe, submitKycReview } from "@/lib/app-api";
+import { deleteMyAccount, getMe, setPayoutDetails, submitKycReview } from "@/lib/app-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,9 @@ function SettingsPage() {
   const [bankProof, setBankProof] = useState<File | null>(null);
   const [selfie, setSelfie] = useState<File | null>(null);
   const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [isSavingPayoutDetails, setIsSavingPayoutDetails] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
@@ -49,6 +52,21 @@ function SettingsPage() {
       toast.error(error.message ?? "Unable to submit KYC documents.");
     } finally {
       setIsSubmittingKyc(false);
+    }
+  };
+
+  const savePayoutDetails = async () => {
+    if (!bankName.trim() || !bankAccountNumber.trim()) return toast.error("Enter your bank name and account number.");
+    setIsSavingPayoutDetails(true);
+    try {
+      await setPayoutDetails({ data: { bankName: bankName.trim(), accountNumber: bankAccountNumber.trim() } });
+      toast.success("Registered payout details saved.");
+      setBankName(""); setBankAccountNumber("");
+      await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (error: any) {
+      toast.error(error.message ?? "Unable to save payout details.");
+    } finally {
+      setIsSavingPayoutDetails(false);
     }
   };
 
@@ -95,6 +113,29 @@ function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage account actions and legal links.</p>
       </div>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Landmark className="h-4 w-4 text-primary" />
+          <h2 className="font-medium">Registered payout details</h2>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Your withdrawal request is checked against these details by an administrator. Current bank: {me?.profile?.bank_name ?? "not added"}.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="registered-bank">Bank name</Label>
+            <Input id="registered-bank" value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="e.g. FNB" />
+          </div>
+          <div>
+            <Label htmlFor="registered-account">Bank account number</Label>
+            <Input id="registered-account" inputMode="numeric" value={bankAccountNumber} onChange={(event) => setBankAccountNumber(event.target.value)} placeholder="Your registered bank account number" />
+          </div>
+          <Button type="button" onClick={savePayoutDetails} disabled={isSavingPayoutDetails} className="gradient-brand text-white">
+            {isSavingPayoutDetails ? "Saving…" : "Save payout details"}
+          </Button>
+        </div>
+      </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">

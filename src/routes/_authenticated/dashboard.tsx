@@ -7,7 +7,7 @@ import { TransactionsTable } from "@/components/TransactionsTable";
 import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
-import { CURRENCIES, type Currency, formatMoney, CURRENCY_META } from "@/lib/currency";
+import { type Currency, formatMoney, CURRENCY_META } from "@/lib/currency";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -77,21 +77,27 @@ function DashboardPage() {
           onStatement={() => setSOpen(true)}
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
-          {CURRENCIES.map((c) => {
-            const w = data.wallets.find((x) => x.currency === c);
-            const bal = Number(w?.balance ?? 0);
-            return (
-              <div key={c} className="glass-card rounded-2xl p-4">
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                  {CURRENCY_META[c].name}
-                </div>
-                <div className="mt-1 font-display text-xl font-bold">
-                  {formatMoney(bal, c)}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="glass-card rounded-2xl p-4">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">
+              {CURRENCY_META.ZAR.name}
+            </div>
+            <div className="mt-1 font-display text-xl font-bold">
+              {formatMoney(Number(data.wallets.find((w) => w.currency === "ZAR")?.balance ?? 0), "ZAR")}
+            </div>
+          </div>
+          <div className="glass-card rounded-2xl p-4">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Registered payout details</div>
+            {profile.bank_name && profile.bank_account_number ? (
+              <>
+                <div className="mt-1 font-display text-lg font-bold">{profile.bank_name}</div>
+                <div className="text-sm text-muted-foreground">Account •••• {String(profile.bank_account_number).slice(-4)}</div>
+                <div className="mt-1 text-sm text-muted-foreground">Cell {profile.phone}</div>
+              </>
+            ) : (
+              <div className="mt-1 text-sm text-muted-foreground">Add your bank details in Settings before requesting a withdrawal.</div>
+            )}
+          </div>
         </div>
 
         <TransactionsTable transactions={data.transactions as any} />

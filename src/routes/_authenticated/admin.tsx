@@ -409,6 +409,10 @@ function parseWithdrawalDescription(desc: string | null | undefined) {
   return { bank, account };
 }
 
+function normalizeBankDetail(value: string | null | undefined) {
+  return (value ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
 function downloadWithdrawalPdf(w: any) {
   const p = w.profiles ?? {};
   const { bank, account } = parseWithdrawalDescription(w.description);
@@ -458,6 +462,9 @@ function WithdrawalRow({
   const [busy, setBusy] = useState(false);
   const p = withdrawal.profiles;
   const { bank, account } = parseWithdrawalDescription(withdrawal.description);
+  const bankMatches = normalizeBankDetail(bank) === normalizeBankDetail(p?.bank_name);
+  const accountMatches = normalizeBankDetail(account) === normalizeBankDetail(p?.bank_account_number);
+  const payoutDetailsMatch = bankMatches && accountMatches;
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -475,6 +482,10 @@ function WithdrawalRow({
           <div className="mt-1 text-xs text-muted-foreground">
             Bank: <span className="font-medium text-foreground">{bank}</span> · Acc:{" "}
             <span className="font-mono">{account}</span>
+          </div>
+          <div className={`mt-2 rounded-lg border px-2 py-1.5 text-xs ${payoutDetailsMatch ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"}`}>
+            <strong>{payoutDetailsMatch ? "Matches registered payout details" : "Does not match registered payout details"}</strong>
+            <span className="mt-0.5 block">Registered: {p?.bank_name ?? "not set"} · {p?.bank_account_number ?? "not set"}</span>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => downloadWithdrawalPdf(withdrawal)}>
