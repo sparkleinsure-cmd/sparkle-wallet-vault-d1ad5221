@@ -7,7 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { SplashScreen } from "@capacitor/splash-screen";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -132,6 +133,21 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const [appReady, setAppReady] = useState(false);
+
+  useEffect(() => {
+    // Let the browser paint the branded shell before dismissing the native
+    // screen. This avoids a white/blank frame while a Capacitor WebView boots.
+    const timer = window.setTimeout(() => {
+      setAppReady(true);
+      void SplashScreen.hide().catch(() => {
+        // The web build has no native splash plugin; the in-app splash still
+        // fades out normally in that case.
+      });
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
@@ -144,8 +160,23 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AppLaunchScreen ready={appReady} />
       <Outlet />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
+  );
+}
+
+function AppLaunchScreen({ ready }: { ready: boolean }) {
+  return (
+    <div className={`app-launch-screen${ready ? " app-launch-screen--ready" : ""}`} aria-hidden="true">
+      <div className="app-launch-screen__glow app-launch-screen__glow--one" />
+      <div className="app-launch-screen__glow app-launch-screen__glow--two" />
+      <div className="app-launch-screen__content">
+        <img className="app-launch-screen__logo" src="/logo.png" alt="" />
+        <div className="app-launch-screen__wordmark">Sparkle Insure</div>
+        <div className="app-launch-screen__loader"><span /></div>
+      </div>
+    </div>
   );
 }

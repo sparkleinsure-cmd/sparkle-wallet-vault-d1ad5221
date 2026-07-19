@@ -7,6 +7,8 @@
     "dev": "vite dev",
     "build": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vite build && node scripts/copy-output-to-dist.mjs",
     "build:dev": "vite build --mode development",
+    "build:mobile": "npm run build && npx cap sync",
+    "cap:sync": "npx cap sync",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
@@ -15,7 +17,9 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/ios": "^8.4.1",
     "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@lovable.dev/cloud-auth-js": "^1.1.2",
     "@radix-ui/react-accordion": "^1.2.12",

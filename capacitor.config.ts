@@ -28,6 +28,19 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: "#F5F3EE",
   },
+  plugins: {
+    SplashScreen: {
+      // Keep the native splash visible until the first React render. The
+      // animated in-app splash then provides a seamless hand-off on Android
+      // and iOS instead of exposing a blank WebView.
+      launchAutoHide: false,
+      launchFadeOutDuration: 250,
+      backgroundColor: "#F5F3EE",
+      androidScaleType: "CENTER_INSIDE",
+      showSpinner: false,
+      splashFullScreen: true,
+    },
+  },
 };
 
 export default config;
