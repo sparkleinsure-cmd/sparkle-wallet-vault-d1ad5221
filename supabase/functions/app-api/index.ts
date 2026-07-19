@@ -88,7 +88,7 @@ serve(async (req) => {
       case "getAccountHealth": {
         const since = new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
         const [snapshots, rewards] = await Promise.all([
-          supabase.from("wallet_health_daily").select("snapshot_date, withdrawable_zar, wallet_health, daily_top_ups, withdrawals, penalties, reward_credit").eq("user_id", userId).gte("snapshot_date", since).order("snapshot_date"),
+          supabase.from("wallet_health_daily").select("snapshot_date, wallet_value_zar, withdrawable_zar, wallet_health, daily_top_ups, withdrawals, penalties, reward_credit").eq("user_id", userId).gte("snapshot_date", since).order("snapshot_date"),
           supabase.from("wallet_reward_credits").select("points, value, qualifying_date").eq("user_id", userId).order("qualifying_date", { ascending: false }).limit(20),
         ]);
         if (snapshots.error) throw new Error(snapshots.error.message);

@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/currency";
 
 type Snapshot = {
   snapshot_date: string;
+  wallet_value_zar: number | string;
   withdrawable_zar: number | string;
   wallet_health: number | string;
   daily_top_ups: number | string;
@@ -20,7 +21,7 @@ export function AccountHealthCard({ health, currentWithdrawable }: { health: any
   const snapshots = (health?.snapshots ?? []) as Snapshot[];
   const data = snapshots.map((snapshot) => ({
     date: dayLabel(snapshot.snapshot_date),
-    withdrawable: Number(snapshot.withdrawable_zar),
+    walletValue: Number(snapshot.wallet_value_zar ?? snapshot.withdrawable_zar),
     topUps: Number(snapshot.daily_top_ups),
     withdrawals: Number(snapshot.withdrawals),
     penalties: Number(snapshot.penalties),
@@ -57,8 +58,8 @@ export function AccountHealthCard({ health, currentWithdrawable }: { health: any
                 <CartesianGrid vertical={false} strokeDasharray="3 4" stroke="currentColor" opacity={0.1} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                 <YAxis hide domain={["dataMin - 100", "dataMax + 100"]} />
-                <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid rgba(11,129,152,.2)", background: "rgba(255,255,255,.96)" }} formatter={(value: number) => [formatMoney(value, "ZAR"), "Withdrawable"]} />
-                <Area type="monotone" dataKey="withdrawable" stroke="#0b8198" strokeWidth={3} fill="url(#healthFill)" dot={{ r: 5, fill: "#0b8198", strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid rgba(11,129,152,.2)", background: "rgba(255,255,255,.96)" }} formatter={(value: number) => [formatMoney(value, "ZAR"), "Account value"]} />
+                <Area type="monotone" dataKey="walletValue" stroke="#0b8198" strokeWidth={3} fill="url(#healthFill)" dot={{ r: 5, fill: "#0b8198", strokeWidth: 0 }} activeDot={{ r: 6 }} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
