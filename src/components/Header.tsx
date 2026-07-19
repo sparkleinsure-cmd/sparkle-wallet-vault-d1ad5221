@@ -9,7 +9,7 @@ export function AppHeader({ isAdmin, accountId }: { isAdmin: boolean; accountId?
   const qc = useQueryClient();
 
   return (
-    <header className="app-safe-sticky sticky z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
         <Link to="/dashboard" className="flex items-center gap-2.5">
           <img src="/logo.png" alt="" className="h-9 w-9 rounded-lg object-contain" />

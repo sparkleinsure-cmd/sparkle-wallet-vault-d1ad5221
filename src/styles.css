@@ -129,10 +129,6 @@ body {
   overflow-x: hidden;
 }
 
-.app-safe-sticky {
-  top: var(--app-safe-top);
-}
-
 .dark {
   --background: oklch(0.18 0.03 230);
   --foreground: oklch(0.97 0.005 220);

@@ -17,6 +17,12 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ always shows a system launch screen. Match it to the
+             in-app animated splash so it is a seamless hand-off, not a black
+             logo screen followed by a second splash. -->
+        <item name="android:windowSplashScreenBackground">#0E5F70</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowBackground">#0E5F70</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
