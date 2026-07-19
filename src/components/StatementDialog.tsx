@@ -58,20 +58,27 @@ export function StatementDialog({
     // Native Capacitor WebViews do not provide a reliable browser download
     // manager. Save the file natively, then open the device share/save sheet.
     if (Capacitor.isNativePlatform()) {
-      const file = await Filesystem.writeFile({
-        path: filename,
-        data: await toBase64(typedBlob),
-        directory: Directory.Documents,
-      });
+      const data = await toBase64(typedBlob);
+      // Documents is preferred because the customer can keep the file. Some
+      // Android devices restrict it, so fall back to Cache and immediately
+      // open the share sheet rather than silently losing the statement.
+      let file;
+      try {
+        file = await Filesystem.writeFile({ path: filename, data, directory: Directory.Documents });
+      } catch {
+        file = await Filesystem.writeFile({ path: filename, data, directory: Directory.Cache });
+      }
       const canShare = await Share.canShare();
-      if (canShare.value) {
-        await Share.share({
-          title: "Sparkle Insure statement",
-          files: [file.uri],
-          dialogTitle: "Save or share statement",
-        });
-      } else {
+      if (!canShare.value) {
         toast.success("Statement saved to your device.");
+        return;
+      }
+      try {
+        await Share.share({ title: "Sparkle Insure statement", files: [file.uri], dialogTitle: "Save or share statement" });
+      } catch {
+        // Older Android WebViews support a URI share even when file-array
+        // sharing is unavailable for a PDF.
+        await Share.share({ title: "Sparkle Insure statement", url: file.uri, dialogTitle: "Save or share statement" });
       }
       return;
     }
@@ -142,7 +149,8 @@ export function StatementDialog({
   const downloadPdf = async () => {
     const transactions = await fetchTransactions();
     if (!transactions) return;
-    const doc = new jsPDF();
+    try {
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
     doc.setFontSize(18);
     doc.setTextColor(30, 90, 110);
     doc.text("Sparkle Insure — Account Statement", 14, 20);
@@ -184,8 +192,12 @@ export function StatementDialog({
       y += 6;
     });
 
-    const blob = doc.output("blob");
+    const blob = new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
     await saveBlob(blob, `sparkle-statement-${range}d.pdf`, "application/pdf");
+    } catch (error: any) {
+      console.error("PDF statement download failed", error);
+      toast.error(error?.message ?? "Unable to create the PDF statement. Please try again.");
+    }
   };
 
   return (

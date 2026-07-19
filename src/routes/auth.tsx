@@ -241,14 +241,15 @@ function SignUpForm() {
           return toast.error(error?.message ?? "Signup failed");
         }
 
-        // Wait briefly for session (auto-confirm is on)
+        // With email confirmation enabled Supabase intentionally does not
+        // issue a session yet. Never send an unconfirmed user to the identity
+        // screen; tell them exactly how to continue instead.
         let session = (await supabase.auth.getSession()).data.session;
-        if (!session) {
-          const login = await supabase.auth.signInWithPassword({
-            email: form.email,
-            password: form.password,
-          });
-          session = login.data.session;
+        if (!session && !data.session) {
+          setLoading(false);
+          toast.success("Check your email for the Sparkle verification link. Open it, then sign in to complete your identity review.", { duration: 10_000 });
+          navigate({ to: "/auth", search: { mode: "signin" } });
+          return;
         }
         if (session) {
           const path = `${data.user.id}/${Date.now()}-${proof.name}`;
@@ -260,7 +261,7 @@ function SignUpForm() {
           }
         }
         setLoading(false);
-        toast.success("Account created! Let's verify you.");
+        toast.success("Account created. Complete your identity review to activate withdrawals.");
         navigate({ to: "/verify" });
       }}
     >
