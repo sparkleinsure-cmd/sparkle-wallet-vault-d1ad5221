@@ -119,6 +119,14 @@ html {
   min-height: 100%;
   padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
   background: var(--gradient-hero);
+  overflow-x: hidden;
+}
+
+body {
+  /* Decorative gradients/cards may extend a few pixels beyond the viewport;
+   * never allow that to create sideways movement in the native WebView. */
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .app-safe-sticky {
