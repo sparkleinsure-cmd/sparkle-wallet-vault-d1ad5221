@@ -1,7 +1,7 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, ExternalLink, Fingerprint, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteMyAccount, getMe, setPayoutDetails, submitKycReview } from "@/lib/app-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { biometricIsReady, biometricSupported, disableBiometric, enableBiometric } from "@/lib/biometric";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -23,9 +24,13 @@ function SettingsPage() {
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [isSavingPayoutDetails, setIsSavingPayoutDetails] = useState(false);
+  const [biometricPassword, setBiometricPassword] = useState("");
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  useEffect(() => { if (biometricSupported()) void biometricIsReady().then(setBiometricEnabled).catch(() => setBiometricEnabled(false)); }, []);
 
   const submitKyc = async () => {
     if (!bankProof || !selfie) return toast.error("Upload both your proof of banking details and a selfie.");
@@ -113,6 +118,11 @@ function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage account actions and legal links.</p>
       </div>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2"><Fingerprint className="h-4 w-4 text-primary" /><h2 className="font-medium">Biometric sign-in</h2></div>
+        {!biometricSupported() ? <p className="text-sm text-muted-foreground">Available in the Sparkle mobile app on phones with fingerprint or face unlock.</p> : biometricEnabled ? <div className="space-y-3"><p className="text-sm text-muted-foreground">Biometric sign-in is enabled on this device.</p><Button variant="outline" disabled={biometricLoading} onClick={async () => { setBiometricLoading(true); try { await disableBiometric(); setBiometricEnabled(false); toast.success("Biometric sign-in disabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }}>Disable biometric sign-in</Button></div> : <div className="space-y-3"><p className="text-sm text-muted-foreground">Enter your password once to enable secure fingerprint or face sign-in on this phone. No email confirmation is needed.</p><Input type="password" autoComplete="current-password" value={biometricPassword} onChange={(e) => setBiometricPassword(e.target.value)} placeholder="Current password" /><Button disabled={biometricLoading || !biometricPassword} onClick={async () => { if (!me?.profile?.email) return; setBiometricLoading(true); try { await enableBiometric(me.profile.email, biometricPassword); setBiometricPassword(""); setBiometricEnabled(true); toast.success("Biometric sign-in enabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }} className="gradient-brand text-white">Enable biometric sign-in</Button></div>}
+      </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">

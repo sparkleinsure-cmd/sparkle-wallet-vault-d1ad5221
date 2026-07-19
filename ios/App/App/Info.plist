@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Sparkle uses your camera only when you choose to submit a selfie for identity review.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Sparkle uses Face ID to securely sign in to your account on this device.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

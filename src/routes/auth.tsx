@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
+import { biometricIsReady, biometricSignIn } from "@/lib/biometric";
 import { Capacitor } from "@capacitor/core";
 
 const authRedirectUrl = () =>
@@ -160,6 +161,8 @@ function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [biometricReady, setBiometricReady] = useState(false);
+  useEffect(() => { void biometricIsReady().then(setBiometricReady).catch(() => setBiometricReady(false)); }, []);
   return (
     <form
       className="space-y-4"
@@ -203,6 +206,7 @@ function SignInForm() {
       <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign in
       </Button>
+      {biometricReady && <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={async () => { setLoading(true); try { await biometricSignIn(); toast.success("Signed in securely."); navigate({ to: "/dashboard" }); } catch (error: any) { toast.error(error.message ?? "Biometric sign-in was not completed."); } finally { setLoading(false); } }}><Fingerprint className="mr-2 h-4 w-4" /> Sign in with biometrics</Button>}
     </form>
   );
 }
