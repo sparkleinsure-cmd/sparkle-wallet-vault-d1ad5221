@@ -6,8 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CURRENCIES, CURRENCY_META, type Currency } from "@/lib/currency";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useServerFn } from "@tanstack/react-start";
-import { creditDeposit } from "@/lib/wallet.functions";
+import { creditDeposit } from "@/lib/app-api";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Copy, Upload } from "lucide-react";
@@ -35,7 +34,7 @@ export function DepositDialog({
   const [amount, setAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const credit = useServerFn(creditDeposit);
+  const credit = creditDeposit;
   const qc = useQueryClient();
 
   const reference = accountId;

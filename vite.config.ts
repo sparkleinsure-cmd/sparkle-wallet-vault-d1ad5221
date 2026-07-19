@@ -7,6 +7,20 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  // Capacitor and GitHub Pages only serve files. SPA mode creates a static
+  // TanStack shell that bootstraps on the device, instead of a hydration-only
+  // document that requires the former Cloudflare/TanStack server.
+  tanstackStart: {
+    spa: {
+      enabled: true,
+      prerender: {
+        outputPath: "/index.html",
+      },
+    },
+  },
+  // Edge Functions now provide every protected operation. Do not build the
+  // former Cloudflare/Nitro server alongside the native static bundle.
+  nitro: false,
   vite: {
     build: {
       outDir: "dist",

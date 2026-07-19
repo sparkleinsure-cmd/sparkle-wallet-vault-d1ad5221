@@ -8,21 +8,15 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *   bun run build
  *   npx cap sync
  *
- * `server.url` (below) can be set to your Lovable-hosted URL to load the
- * live PWA into the native shell (great for Appflow live updates).
+ * The app runs from the packaged static build and calls Supabase directly.
+ * This keeps Appflow independent of Lovable or a separately hosted web server.
  */
 const config: CapacitorConfig = {
   appId: "com.sparkleinsure.app",
   appName: "Sparkle Insure",
-  webDir: "dist",
+  // TanStack SPA mode emits its runnable static files here.
+  webDir: "dist/client",
   bundledWebRuntime: false,
-  server: {
-    androidScheme: "https",
-    // Run the full TanStack application from the independently hosted
-    // Cloudflare Worker, rather than relying on the static native bundle.
-    url: "https://sparkleinsure-cmd-sparkle-wallet-vault-d1ad5221.sparkleinsure.workers.dev",
-    cleartext: false,
-  },
   ios: {
     contentInset: "always",
   },

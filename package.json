@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "node -e \"const fs=require('fs'); fs.rmSync('.output', { recursive: true, force: true }); fs.mkdirSync('dist', { recursive: true })\" && vite build && node -e \"require('fs').rmSync('.output/public/_redirects', { force: true })\" && node scripts/copy-output-to-dist.mjs && npx cap sync",
+    "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && vite build && npx cap sync",
     "build:dev": "vite build --mode development",
     "build:mobile": "npm run build",
     "cap:sync": "npx cap sync",

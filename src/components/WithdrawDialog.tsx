@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label";
 import { CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useServerFn } from "@tanstack/react-start";
-import { requestWithdrawal } from "@/lib/wallet.functions";
+import { requestWithdrawal } from "@/lib/app-api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle } from "lucide-react";
 
@@ -29,7 +28,7 @@ export function WithdrawDialog({
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [breakConfirm, setBreakConfirm] = useState(false);
-  const req = useServerFn(requestWithdrawal);
+  const req = requestWithdrawal;
   const qc = useQueryClient();
   const requestedAmount = Number(amount);
   const breaksGrowingTranche = Number.isFinite(requestedAmount)

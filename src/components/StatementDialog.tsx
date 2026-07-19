@@ -6,8 +6,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import { formatMoney, type Currency } from "@/lib/currency";
-import { useServerFn } from "@tanstack/react-start";
-import { getStatementTransactions } from "@/lib/wallet.functions";
+import { getStatementTransactions } from "@/lib/app-api";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
@@ -36,7 +35,7 @@ export function StatementDialog({
 }) {
   const [range, setRange] = useState<"7" | "30" | "90">("30");
   const [isGenerating, setIsGenerating] = useState(false);
-  const getTransactions = useServerFn(getStatementTransactions);
+  const getTransactions = getStatementTransactions;
 
   const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

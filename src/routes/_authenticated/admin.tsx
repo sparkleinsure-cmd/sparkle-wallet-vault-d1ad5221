@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getMe } from "@/lib/wallet.functions";
+import { getMe } from "@/lib/app-api";
 import {
   adminLookupUser,
   adminCreditBonus,
@@ -13,7 +12,7 @@ import {
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
   adminListActiveTranches,
-} from "@/lib/admin.functions";
+} from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,17 +32,17 @@ export const Route = createFileRoute("/_authenticated/admin")({
 });
 
 function AdminPage() {
-  const fetchMe = useServerFn(getMe);
-  const lookup = useServerFn(adminLookupUser);
-  const credit = useServerFn(adminCreditBonus);
-  const seed = useServerFn(adminSeedDemo);
-  const listPending = useServerFn(adminListPendingDeposits);
-  const getProof = useServerFn(adminGetProofUrl);
-  const verifyDep = useServerFn(adminVerifyDeposit);
-  const declineDep = useServerFn(adminDeclineDeposit);
-  const listWithdrawals = useServerFn(adminListPendingWithdrawals);
-  const completeWithdrawal = useServerFn(adminCompleteWithdrawal);
-  const listTranches = useServerFn(adminListActiveTranches);
+  const fetchMe = getMe;
+  const lookup = adminLookupUser;
+  const credit = adminCreditBonus;
+  const seed = adminSeedDemo;
+  const listPending = adminListPendingDeposits;
+  const getProof = adminGetProofUrl;
+  const verifyDep = adminVerifyDeposit;
+  const declineDep = adminDeclineDeposit;
+  const listWithdrawals = adminListPendingWithdrawals;
+  const completeWithdrawal = adminCompleteWithdrawal;
+  const listTranches = adminListActiveTranches;
   const navigate = useNavigate();
 
   const { data: me, isLoading } = useQuery({ queryKey: ["me"], queryFn: () => fetchMe() });

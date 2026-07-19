@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { getMe, setPrimaryCurrency } from "@/lib/wallet.functions";
+import { getMe, setPrimaryCurrency } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionsTable } from "@/components/TransactionsTable";
@@ -18,8 +17,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
-  const fetchMe = useServerFn(getMe);
-  const setCcy = useServerFn(setPrimaryCurrency);
+  const fetchMe = getMe;
+  const setCcy = setPrimaryCurrency;
   const qc = useQueryClient();
   const navigate = useNavigate();
 
