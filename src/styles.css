@@ -106,6 +106,25 @@
   --shadow-card: 0 10px 30px -12px oklch(0.30 0.06 230 / 0.20);
 }
 
+/* Capacitor injects --safe-area-inset-* on Android 15+ (where WebView's
+ * env(safe-area-inset-*) can be inaccurate). On iOS and regular browsers the
+ * CSS env() values are used instead. Keeping this on html makes every screen
+ * begin below the status bar and end above the gesture/navigation bar. */
+html {
+  --app-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --app-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
+  background: var(--gradient-hero);
+}
+
+.app-safe-sticky {
+  top: var(--app-safe-top);
+}
+
 .dark {
   --background: oklch(0.18 0.03 230);
   --foreground: oklch(0.97 0.005 220);
@@ -210,6 +229,8 @@
   min-height: 100svh;
   place-items: center;
   overflow: hidden;
+  box-sizing: border-box;
+  padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
   background: linear-gradient(145deg, #0e5f70 0%, #167f95 48%, #0b4f60 100%);
   color: #fff;
   opacity: 1;

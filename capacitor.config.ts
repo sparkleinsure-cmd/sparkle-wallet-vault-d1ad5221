@@ -24,6 +24,13 @@ const config: CapacitorConfig = {
     backgroundColor: "#F5F3EE",
   },
   plugins: {
+    // Capacitor injects accurate Android status/navigation-bar insets into
+    // --safe-area-inset-* for the CSS above.
+    SystemBars: {
+      insetsHandling: "css",
+      style: "DARK",
+      hidden: false,
+    },
     SplashScreen: {
       // Do not let a failed or stale web bundle trap the user on the native
       // launch screen. The React splash still provides the branded hand-off
