@@ -18,9 +18,10 @@ const config: CapacitorConfig = {
   bundledWebRuntime: false,
   server: {
     androidScheme: "https",
-    // Uncomment and point to your published Lovable URL for OTA-style updates:
-    // url: "https://sparkleinsure.lovable.app",
-    // cleartext: false,
+    // Run the full TanStack application from the independently hosted
+    // Cloudflare Worker, rather than relying on the static native bundle.
+    url: "https://sparkleinsure-cmd-sparkle-wallet-vault-d1ad5221.sparkleinsure.workers.dev",
+    cleartext: false,
   },
   ios: {
     contentInset: "always",
