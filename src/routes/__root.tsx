@@ -136,17 +136,23 @@ function RootComponent() {
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    // Let the browser paint the branded shell before dismissing the native
-    // screen. This avoids a white/blank frame while a Capacitor WebView boots.
-    const timer = window.setTimeout(() => {
-      setAppReady(true);
+    // Wait for two frames so the in-app splash is visibly painted below the
+    // native launch screen. A short, deliberate hold lets its animation play
+    // on Android instead of disappearing in the same frame it is mounted.
+    let revealTimer: number | undefined;
+    const firstFrame = window.requestAnimationFrame(() => {
       void SplashScreen.hide().catch(() => {
-        // The web build has no native splash plugin; the in-app splash still
-        // fades out normally in that case.
+        // Browser builds have no native splash plugin.
       });
-    }, 180);
+      window.requestAnimationFrame(() => {
+        revealTimer = window.setTimeout(() => setAppReady(true), 1_150);
+      });
+    });
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (revealTimer !== undefined) window.clearTimeout(revealTimer);
+    };
   }, []);
 
   useEffect(() => {

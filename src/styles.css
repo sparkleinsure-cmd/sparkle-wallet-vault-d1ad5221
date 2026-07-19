@@ -203,6 +203,21 @@ body {
   box-shadow: var(--shadow-glass);
 }
 
+/* Fixed backgrounds and backdrop blur cause full-screen GPU repaints while
+ * scrolling in Android WebView. Keep the same palette on touch devices, but
+ * use an opaque, lightweight card surface for native-quality scrolling. */
+@media (pointer: coarse) {
+  body {
+    background-attachment: scroll;
+  }
+
+  .glass-card {
+    background: color-mix(in oklab, var(--card) 94%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @utility gradient-brand {
   background-image: var(--gradient-brand);
 }
