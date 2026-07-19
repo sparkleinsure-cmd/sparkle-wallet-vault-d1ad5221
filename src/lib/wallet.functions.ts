@@ -13,21 +13,20 @@ type StatementTransaction = Pick<
 
 async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
   const resendKey = process.env.RESEND_API_KEY;
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  if (!resendKey || !lovableKey) {
+  const from = process.env.RESEND_FROM_EMAIL ?? "Sparkle Insure <onboarding@resend.dev>";
+  if (!resendKey) {
     console.log(`[email:no-provider] to=${to} subject="${subject}"\n${text}`);
     return { ok: false, error: "email_provider_not_configured" };
   }
   try {
-    const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+    const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": resendKey,
+        Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: "Sparkle Insure <onboarding@resend.dev>",
+        from,
         to: [to],
         subject,
         text,
