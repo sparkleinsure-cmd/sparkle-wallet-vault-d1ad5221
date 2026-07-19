@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -163,6 +165,40 @@ function RootComponent() {
     });
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const finishEmailLink = async (url: string) => {
+      try {
+        const parsed = new URL(url);
+        const code = parsed.searchParams.get("code");
+        const hash = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(url);
+          if (error) throw error;
+        } else {
+          const accessToken = hash.get("access_token");
+          const refreshToken = hash.get("refresh_token");
+          if (!accessToken || !refreshToken) return;
+          const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          if (error) throw error;
+        }
+        await router.navigate({ to: "/dashboard" });
+      } catch (error) {
+        console.error("Unable to complete email confirmation", error);
+        await router.navigate({ to: "/auth", search: { mode: "signin" } });
+      }
+    };
+
+    void App.getLaunchUrl().then((launch) => {
+      if (launch?.url.startsWith("com.sparkleinsure.app://")) void finishEmailLink(launch.url);
+    });
+    const listener = App.addListener("appUrlOpen", ({ url }) => {
+      if (url.startsWith("com.sparkleinsure.app://")) void finishEmailLink(url);
+    });
+    return () => { void listener.then((handle) => handle.remove()); };
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>

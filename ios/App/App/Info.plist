@@ -26,6 +26,15 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Sparkle uses your camera only when you choose to submit a selfie for identity review.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.sparkleinsure.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

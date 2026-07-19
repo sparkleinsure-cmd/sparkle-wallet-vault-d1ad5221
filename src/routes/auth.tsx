@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+
+const authRedirectUrl = () =>
+  Capacitor.isNativePlatform()
+    ? "com.sparkleinsure.app://auth/confirm"
+    : `${window.location.origin}/auth?mode=signin`;
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -181,7 +187,7 @@ function SignInForm() {
               if (!email.trim()) return toast.error("Enter your email above first.");
               setResetting(true);
               const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: `${window.location.origin}/auth?mode=signin`,
+                redirectTo: authRedirectUrl(),
               });
               setResetting(false);
               if (error) return toast.error(error.message);
@@ -227,7 +233,7 @@ function SignUpForm() {
           email: form.email,
           password: form.password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: authRedirectUrl(),
             data: {
               first_name: form.firstName,
               surname: form.surname,

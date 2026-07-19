@@ -148,7 +148,6 @@ function VerifyPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="user"
                   className="hidden"
                   onChange={(e) => onFileUpload(e.target.files?.[0])}
                 />
