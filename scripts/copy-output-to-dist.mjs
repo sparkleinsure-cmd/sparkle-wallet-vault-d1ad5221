@@ -36,12 +36,17 @@ copyRecursive(sourceDir, targetDir);
 
 const indexHtmlPath = path.join(targetDir, "index.html");
 const assetsDir = path.join(targetDir, "assets");
-const jsFiles = fs.existsSync(assetsDir)
-  ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".js")).sort()
+const assetFiles = fs.existsSync(assetsDir)
+  ? fs.readdirSync(assetsDir)
+      .map((file) => ({
+        file,
+        modifiedAt: fs.statSync(path.join(assetsDir, file)).mtimeMs,
+      }))
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
   : [];
-const cssFiles = fs.existsSync(assetsDir)
-  ? fs.readdirSync(assetsDir).filter((file) => file.endsWith(".css")).sort()
-  : [];
+
+const jsFiles = assetFiles.filter(({ file }) => file.endsWith(".js")).map(({ file }) => file);
+const cssFiles = assetFiles.filter(({ file }) => file.endsWith(".css")).map(({ file }) => file);
 
 const entryJs =
   jsFiles.find((file) => /^index-.*\.js$/.test(file)) ||
