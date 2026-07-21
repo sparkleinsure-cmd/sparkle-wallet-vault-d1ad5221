@@ -35,7 +35,6 @@
 
   window.triggerPWAInstall = function () {
     if (!deferredPrompt) {
-      window.dispatchEvent(new Event("sparkle-pwa-install-unavailable"));
       return Promise.resolve({ outcome: "unavailable" });
     }
 

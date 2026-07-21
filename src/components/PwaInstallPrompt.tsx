@@ -37,6 +37,11 @@ function isMobileWeb() {
   return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent);
 }
 
+function isChromeLikeAndroid() {
+  const ua = window.navigator.userAgent;
+  return /Android/i.test(ua) && /Chrome|CriOS|EdgA/i.test(ua) && !/OPR|Opera|SamsungBrowser|HuaweiBrowser|UCBrowser/i.test(ua);
+}
+
 export function PwaInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
@@ -47,6 +52,7 @@ export function PwaInstallPrompt() {
   useEffect(() => {
     const isIos = /iPhone|iPad|iPod/i.test(window.navigator.userAgent);
     const isAndroid = /Android/i.test(window.navigator.userAgent);
+    const isChromeAndroid = isChromeLikeAndroid();
     if (Capacitor.isNativePlatform() || isStandalone() || !isMobileWeb() || recentlyDismissed()) return;
 
     const onGlobalInstallReady = () => {
@@ -81,11 +87,11 @@ export function PwaInstallPrompt() {
       if (isIos && !isStandalone()) {
         setIosHint(true);
         setVisible(true);
-      } else if (isAndroid && !window.sparklePwaInstallReady && !isStandalone()) {
+      } else if (isAndroid && !isChromeAndroid && !window.sparklePwaInstallReady && !isStandalone()) {
         setManualHint(true);
         setVisible(true);
       }
-    }, 2_500);
+    }, 4_000);
 
     return () => {
       window.removeEventListener("sparkle-pwa-install-ready", onGlobalInstallReady);
@@ -124,7 +130,7 @@ export function PwaInstallPrompt() {
             {iosHint
               ? "Tap Share in Safari, then Add to Home Screen to keep Sparkle Insure on your phone."
               : manualHint
-                ? "Your current browser is not showing the install prompt. Open this site in Chrome, then use Chrome's Install app or Add to Home screen option."
+                ? "This browser may not show the app install prompt. Open the site in Chrome, then use Chrome's Install app or Add to Home screen option."
                 : "Add Sparkle Insure to your phone for quicker access and an app-like experience."}
           </p>
         </div>
@@ -149,14 +155,10 @@ export function PwaInstallPrompt() {
           <Button
             className="flex-1 gradient-brand text-white"
             onClick={() => {
-              if (manualHint) {
-                window.open(window.location.href, "_blank", "noopener,noreferrer");
-                return;
-              }
               dismiss();
             }}
           >
-            {manualHint ? "Open in browser" : "Got it"}
+            Got it
           </Button>
         )}
         <Button variant="outline" onClick={dismiss}>
