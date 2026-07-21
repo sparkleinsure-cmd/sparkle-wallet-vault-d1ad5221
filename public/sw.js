@@ -5,6 +5,7 @@ const APP_SHELL = [
   "/manifest.webmanifest",
   "/pwa-register.js",
   "/pwa-install.js",
+  "/eruda-loader.js",
   "/logo.png",
   "/favicon.ico",
   "/icons/icon-192.png",
