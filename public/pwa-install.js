@@ -34,7 +34,10 @@
   });
 
   window.triggerPWAInstall = function () {
-    if (!deferredPrompt) return Promise.resolve({ outcome: "unavailable" });
+    if (!deferredPrompt) {
+      window.dispatchEvent(new Event("sparkle-pwa-install-unavailable"));
+      return Promise.resolve({ outcome: "unavailable" });
+    }
 
     return deferredPrompt.prompt().then(function () {
       return deferredPrompt.userChoice.then(function (choiceResult) {
