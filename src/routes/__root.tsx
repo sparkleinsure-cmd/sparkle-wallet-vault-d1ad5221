@@ -126,6 +126,31 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <button
+          id="pwa-install-btn"
+          type="button"
+          style={{
+            display: "none",
+            position: "fixed",
+            right: "14px",
+            bottom: "14px",
+            zIndex: 60,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "999px",
+            border: "0",
+            padding: "12px 16px",
+            background: "#07869D",
+            color: "white",
+            font: "600 14px Inter, system-ui, sans-serif",
+            boxShadow: "0 18px 45px rgba(7, 134, 157, 0.28)",
+          }}
+          onClick={() => {
+            void window.triggerPWAInstall?.();
+          }}
+        >
+          Install Wallet App
+        </button>
         {children}
         <Scripts />
       </body>

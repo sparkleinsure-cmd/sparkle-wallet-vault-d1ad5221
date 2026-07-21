@@ -3,10 +3,21 @@
 
   window.sparklePwaInstallReady = false;
 
+  function showInstallButton() {
+    var button = document.getElementById("pwa-install-btn");
+    if (button) button.style.display = "inline-flex";
+  }
+
+  function hideInstallButton() {
+    var button = document.getElementById("pwa-install-btn");
+    if (button) button.style.display = "none";
+  }
+
   window.addEventListener("beforeinstallprompt", function (event) {
     event.preventDefault();
     deferredPrompt = event;
     window.sparklePwaInstallReady = true;
+    showInstallButton();
     window.dispatchEvent(new Event("sparkle-pwa-install-ready"));
   });
 
@@ -18,6 +29,7 @@
     } catch (_) {
       // Storage may be unavailable in private browsing.
     }
+    hideInstallButton();
     window.dispatchEvent(new Event("sparkle-pwa-installed"));
   });
 
@@ -35,8 +47,17 @@
         }
         deferredPrompt = null;
         window.sparklePwaInstallReady = false;
+        hideInstallButton();
         return choiceResult;
       });
     });
   };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.sparklePwaInstallReady) showInstallButton();
+    });
+  } else if (window.sparklePwaInstallReady) {
+    showInstallButton();
+  }
 })();
