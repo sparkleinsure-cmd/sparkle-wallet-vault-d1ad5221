@@ -1,14 +1,13 @@
 (function () {
   var params = new URLSearchParams(window.location.search);
   var debugEnabled = params.get("eruda") === "1" || params.get("debug") === "eruda";
+  var resetRequested = params.get("pwa-reset") === "1";
 
   try {
     debugEnabled = debugEnabled || window.localStorage.getItem("sparkle_eruda_enabled") === "true";
   } catch (_) {
     // Storage can be blocked in private browsing.
   }
-
-  if (!debugEnabled) return;
 
   function log(label, value) {
     if (value === undefined) console.info("[Sparkle PWA]", label);
@@ -28,6 +27,39 @@
       stack: error.stack,
     };
   }
+
+  if (resetRequested) {
+    console.info("[Sparkle PWA]", "Reset requested. Clearing caches, service workers, and local PWA flags...");
+    Promise.all([
+      "caches" in window
+        ? caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+          })
+        : Promise.resolve(),
+      "serviceWorker" in navigator
+        ? navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            return Promise.all(registrations.map(function (registration) { return registration.unregister(); }));
+          })
+        : Promise.resolve(),
+      Promise.resolve().then(function () {
+        try {
+          window.localStorage.removeItem("sparkle_pwa_installed");
+          window.localStorage.removeItem("sparkle_pwa_install_dismissed_at");
+          window.localStorage.setItem("sparkle_eruda_enabled", "true");
+        } catch (_) {
+          // Storage can be blocked in private browsing.
+        }
+      }),
+    ]).finally(function () {
+      var cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("pwa-reset");
+      cleanUrl.searchParams.set("eruda", "1");
+      window.location.replace(cleanUrl.toString());
+    });
+    return;
+  }
+
+  if (!debugEnabled) return;
 
   function isStandalone() {
     return (
