@@ -157,6 +157,13 @@
       installButtonPresent: Boolean(document.getElementById("pwa-install-btn")),
       installButtonDisplay: document.getElementById("pwa-install-btn")?.style.display || null,
     });
+    log("Chrome install checklist", {
+      https: window.isSecureContext,
+      manifest: "checking below",
+      serviceWorker: "checking below",
+      engagement: "Keep this page open for at least 30 seconds and tap the page once. Chrome may not fire beforeinstallprompt before that.",
+      notAlreadyInstalled: "If Sparkle was installed before, uninstall it first or Chrome can suppress the prompt.",
+    });
 
     return Promise.all([inspectManifest(), inspectServiceWorker()]);
   };
@@ -165,7 +172,7 @@
 
   window.setTimeout(function () {
     if (!window.sparklePwaInstallReady && !isStandalone()) {
-      warn("beforeinstallprompt has not fired after 10 seconds. Chrome is still treating the site as not installable or temporarily suppressing the prompt.");
+      warn("beforeinstallprompt has not fired after 40 seconds. If manifest assets and service worker are OK, Chrome is likely suppressing the prompt because of engagement, previous dismissal, or installed-state history.");
     }
-  }, 10_000);
+  }, 40_000);
 })();

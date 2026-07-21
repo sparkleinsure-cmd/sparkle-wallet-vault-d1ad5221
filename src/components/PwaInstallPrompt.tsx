@@ -131,7 +131,7 @@ export function PwaInstallPrompt() {
               ? "Tap Share in Safari, then Add to Home Screen to keep Sparkle Insure on your phone."
               : manualHint
                 ? "This browser may not show the app install prompt. Open the site in Chrome, then use Chrome's Install app or Add to Home screen option."
-                : "Add Sparkle Insure to your phone for quicker access and an app-like experience."}
+                : "Add Sparkle Insure to your phone for quicker access and an app-like experience. If Chrome does not show the install button yet, keep this page open for 30 seconds and tap once."}
           </p>
         </div>
       </div>
