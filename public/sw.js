@@ -1,4 +1,4 @@
-const CACHE_NAME = "sparkle-insure-v2";
+const CACHE_NAME = "sparkle-insure-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -7,8 +7,8 @@ const APP_SHELL = [
   "/pwa-install.js",
   "/logo.png",
   "/favicon.ico",
-  "/icons/icon-192.webp",
-  "/icons/icon-512.webp",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {

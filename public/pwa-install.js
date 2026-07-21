@@ -55,11 +55,23 @@
     });
   };
 
+  function wireInstallButton() {
+    var button = document.getElementById("pwa-install-btn");
+    if (!button || button.dataset.sparklePwaWired === "true") return;
+
+    button.dataset.sparklePwaWired = "true";
+    button.addEventListener("click", function () {
+      window.triggerPWAInstall();
+    });
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
+      wireInstallButton();
       if (window.sparklePwaInstallReady) showInstallButton();
     });
-  } else if (window.sparklePwaInstallReady) {
-    showInstallButton();
+  } else {
+    wireInstallButton();
+    if (window.sparklePwaInstallReady) showInstallButton();
   }
 })();
