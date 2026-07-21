@@ -17,6 +17,7 @@ import {
   adminGetKycProofUrl,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2 } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -66,6 +67,21 @@ function AdminPage() {
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
     queryFn: () => listWithdrawals(),
+    enabled: !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
+  });
+  const { data: communityReports, refetch: refetchCommunityReports } = useQuery({
+    queryKey: ["admin-community-reports"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("community_reports" as any)
+        .select("*, community_messages(id, body, image_path, account_id, author_name, created_at)")
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
@@ -187,6 +203,84 @@ function AdminPage() {
                   }}
                 />
               ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-4 flex items-center font-display text-lg font-semibold">
+            <Flag className="mr-2 h-4 w-4 text-primary" />
+            Community reports
+            {communityReports?.length ? (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                {communityReports.length}
+              </span>
+            ) : null}
+          </h2>
+          {!communityReports?.length ? (
+            <p className="text-sm text-muted-foreground">No community messages are waiting for review.</p>
+          ) : (
+            <div className="space-y-3">
+              {communityReports.map((report: any) => {
+                const message = report.community_messages;
+                return (
+                  <div key={report.id} className="rounded-xl border border-border bg-background/70 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="font-semibold">{message?.author_name ?? "Community member"}</div>
+                        <div className="text-xs font-mono uppercase tracking-wide text-muted-foreground">
+                          {message?.account_id ?? "Member"} · {message?.created_at ? new Date(message.created_at).toLocaleString() : ""}
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">Reason: {report.reason}</p>
+                        {message?.body && <p className="mt-2 whitespace-pre-wrap break-words text-sm">{message.body}</p>}
+                        {message?.image_path && <p className="mt-2 text-xs text-muted-foreground">Image attached: {message.image_path}</p>}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from("community_reports" as any)
+                                .update({ status: "dismissed", resolved_at: new Date().toISOString(), resolved_by: me.profile.id })
+                                .eq("id", report.id);
+                              if (error) throw new Error(error.message);
+                              toast.success("Report dismissed");
+                              refetchCommunityReports();
+                            } catch (error: any) { toast.error(error.message); }
+                          }}
+                        >
+                          Dismiss
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={async () => {
+                            if (!message?.id || !confirm("Hide this community message?")) return;
+                            try {
+                              const hidden = await supabase
+                                .from("community_messages" as any)
+                                .update({ deleted_at: new Date().toISOString() })
+                                .eq("id", message.id);
+                              if (hidden.error) throw new Error(hidden.error.message);
+                              const resolved = await supabase
+                                .from("community_reports" as any)
+                                .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: me.profile.id })
+                                .eq("id", report.id);
+                              if (resolved.error) throw new Error(resolved.error.message);
+                              toast.success("Message hidden and report resolved");
+                              refetchCommunityReports();
+                            } catch (error: any) { toast.error(error.message); }
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Hide
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

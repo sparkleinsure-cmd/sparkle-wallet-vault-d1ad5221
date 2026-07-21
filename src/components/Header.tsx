@@ -2,11 +2,46 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Settings, Shield } from "lucide-react";
+import { LogOut, MessageCircle, Settings, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+
+const COMMUNITY_LAST_SEEN_KEY = "sparkle_community_last_seen_at";
 
 export function AppHeader({ isAdmin, accountId }: { isAdmin: boolean; accountId?: string }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [hasCommunityUnread, setHasCommunityUnread] = useState(false);
+
+  useEffect(() => {
+    const refreshUnread = async () => {
+      if (window.location.pathname.includes("/community")) {
+        setHasCommunityUnread(false);
+        return;
+      }
+      const seenAt = localStorage.getItem(COMMUNITY_LAST_SEEN_KEY) ?? "1970-01-01T00:00:00.000Z";
+      const { data } = await supabase
+        .from("community_messages" as any)
+        .select("created_at")
+        .gt("created_at", seenAt)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      setHasCommunityUnread(!!data?.length);
+    };
+
+    void refreshUnread();
+    const channel = supabase
+      .channel("community-header")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_messages" }, () => {
+        if (!window.location.pathname.includes("/community")) setHasCommunityUnread(true);
+      })
+      .subscribe();
+    window.addEventListener("sparkle-community-seen", refreshUnread);
+
+    return () => {
+      window.removeEventListener("sparkle-community-seen", refreshUnread);
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
@@ -24,6 +59,16 @@ export function AppHeader({ isAdmin, accountId }: { isAdmin: boolean; accountId?
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="relative gap-1.5">
+            <Link to="/community">
+              <MessageCircle className="h-3.5 w-3.5" />
+              Community
+              {hasCommunityUnread && (
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
+              )}
+            </Link>
+          </Button>
+
           <Button asChild variant="outline" size="sm" className="gap-1.5">
             <Link to="/settings">
               <Settings className="h-3.5 w-3.5" />
