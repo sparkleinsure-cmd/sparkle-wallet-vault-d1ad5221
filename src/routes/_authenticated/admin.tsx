@@ -30,6 +30,8 @@ import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCir
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
+const COMMUNITY_FEATURE_ENABLED = false;
+
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
   component: AdminPage,
@@ -82,7 +84,7 @@ function AdminPage() {
       if (error) throw new Error(error.message);
       return data ?? [];
     },
-    enabled: !!me?.roles.includes("admin"),
+    enabled: COMMUNITY_FEATURE_ENABLED && !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
 
@@ -207,7 +209,7 @@ function AdminPage() {
           )}
         </Card>
 
-        <Card className="glass-card rounded-2xl p-6">
+        {COMMUNITY_FEATURE_ENABLED && <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-4 flex items-center font-display text-lg font-semibold">
             <Flag className="mr-2 h-4 w-4 text-primary" />
             Community reports
@@ -283,7 +285,7 @@ function AdminPage() {
               })}
             </div>
           )}
-        </Card>
+        </Card>}
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-4 font-display text-lg font-semibold">

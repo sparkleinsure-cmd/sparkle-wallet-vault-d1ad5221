@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +25,9 @@ const LAST_SEEN_KEY = "sparkle_community_last_seen_at";
 const MAX_IMAGE_BYTES = 1024 * 1024;
 
 export const Route = createFileRoute("/_authenticated/community")({
+  beforeLoad: () => {
+    throw redirect({ to: "/dashboard" });
+  },
   head: () => ({ meta: [{ title: "Community - Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
   component: CommunityPage,
 });

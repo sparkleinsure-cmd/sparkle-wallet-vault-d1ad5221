@@ -16,6 +16,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 function NotFoundComponent() {
   return (
@@ -138,6 +139,21 @@ function RootComponent() {
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
+    if (!("serviceWorker" in navigator) || Capacitor.isNativePlatform()) return;
+    const registerServiceWorker = () => {
+      void navigator.serviceWorker.register("/sw.js").catch((error) => {
+        console.warn("Service worker registration failed", error);
+      });
+    };
+    if (document.readyState === "complete") {
+      registerServiceWorker();
+      return;
+    }
+    window.addEventListener("load", registerServiceWorker, { once: true });
+    return () => window.removeEventListener("load", registerServiceWorker);
+  }, []);
+
+  useEffect(() => {
     // Wait for two frames so the in-app splash is visibly painted below the
     // native launch screen. A short, deliberate hold lets its animation play
     // on Android instead of disappearing in the same frame it is mounted.
@@ -204,6 +220,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AppLaunchScreen ready={appReady} />
       <Outlet />
+      <PwaInstallPrompt />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
