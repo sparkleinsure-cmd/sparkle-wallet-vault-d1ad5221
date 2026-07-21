@@ -8,6 +8,13 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+declare global {
+  interface Window {
+    sparklePwaInstallReady?: boolean;
+    triggerPWAInstall?: () => Promise<{ outcome: "accepted" | "dismissed" | "unavailable"; platform?: string }>;
+  }
+}
+
 const DISMISSED_KEY = "sparkle_pwa_install_dismissed_at";
 const INSTALLED_KEY = "sparkle_pwa_installed";
 const DISMISS_DAYS = 7;
@@ -34,11 +41,16 @@ export function PwaInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosHint, setIosHint] = useState(false);
+  const [globalPromptReady, setGlobalPromptReady] = useState(false);
 
   useEffect(() => {
     const isIos = /iPhone|iPad|iPod/i.test(window.navigator.userAgent);
     if (Capacitor.isNativePlatform() || isStandalone() || !isMobileWeb() || recentlyDismissed()) return;
 
+    const onGlobalInstallReady = () => {
+      setGlobalPromptReady(true);
+      setVisible(true);
+    };
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallEvent(event as BeforeInstallPromptEvent);
@@ -49,8 +61,11 @@ export function PwaInstallPrompt() {
       setVisible(false);
     };
 
+    if (window.sparklePwaInstallReady) onGlobalInstallReady();
+    window.addEventListener("sparkle-pwa-install-ready", onGlobalInstallReady);
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("sparkle-pwa-installed", onInstalled);
 
     const fallbackTimer = window.setTimeout(() => {
       if (isIos && !isStandalone()) {
@@ -60,8 +75,10 @@ export function PwaInstallPrompt() {
     }, 1_500);
 
     return () => {
+      window.removeEventListener("sparkle-pwa-install-ready", onGlobalInstallReady);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("sparkle-pwa-installed", onInstalled);
       window.clearTimeout(fallbackTimer);
     };
   }, []);
@@ -97,14 +114,16 @@ export function PwaInstallPrompt() {
         </div>
       </div>
       <div className="mt-3 flex gap-2">
-        {!iosHint && installEvent ? (
+        {!iosHint && (installEvent || globalPromptReady) ? (
           <Button
             className="flex-1 gradient-brand text-white"
             onClick={async () => {
-              await installEvent.prompt();
-              const choice = await installEvent.userChoice;
+              const choice = window.triggerPWAInstall
+                ? await window.triggerPWAInstall()
+                : await installEvent!.prompt().then(() => installEvent!.userChoice);
               if (choice.outcome === "accepted") localStorage.setItem(INSTALLED_KEY, "true");
               setInstallEvent(null);
+              setGlobalPromptReady(false);
               setVisible(false);
             }}
           >
