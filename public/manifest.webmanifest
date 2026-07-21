@@ -2,7 +2,7 @@
   "name": "Sparkle Insure",
   "short_name": "Sparkle",
   "description": "Sparkle Insure - your premium multi-currency digital wallet.",
-  "id": "/",
+  "id": "/sparkle-insure-wallet",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

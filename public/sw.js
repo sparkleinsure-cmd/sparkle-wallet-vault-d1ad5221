@@ -1,4 +1,4 @@
-const CACHE_NAME = "sparkle-insure-v4";
+const CACHE_NAME = "sparkle-insure-v5";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -83,6 +83,7 @@ self.addEventListener("fetch", (event) => {
           response.ok &&
           (url.pathname.startsWith("/assets/") ||
             url.pathname.startsWith("/icons/") ||
+            url.pathname.startsWith("/screenshots/") ||
             url.pathname === "/manifest.webmanifest" ||
             url.pathname === "/pwa-install.js" ||
             url.pathname === "/pwa-register.js")
