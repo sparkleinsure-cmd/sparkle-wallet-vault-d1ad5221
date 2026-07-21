@@ -1,4 +1,4 @@
-const CACHE_NAME = "sparkle-insure-v3";
+const CACHE_NAME = "sparkle-insure-v4";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -35,6 +35,29 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/auth/") || url.pathname.startsWith("/functions/")) return;
+
+  const shouldAlwaysRefresh =
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/pwa-install.js" ||
+    url.pathname === "/pwa-register.js" ||
+    url.pathname === "/pwa-debug.js" ||
+    url.pathname === "/eruda-loader.js" ||
+    url.pathname === "/sw.js";
+
+  if (shouldAlwaysRefresh) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request)),
+    );
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(
