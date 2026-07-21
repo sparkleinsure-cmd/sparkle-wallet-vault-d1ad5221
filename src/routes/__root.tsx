@@ -111,7 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap" },
     ],
-    scripts: [{ src: "/pwa-install.js" }],
+    scripts: [{ src: "/pwa-register.js" }, { src: "/pwa-install.js" }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -162,21 +162,6 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const [appReady, setAppReady] = useState(false);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator) || Capacitor.isNativePlatform()) return;
-    const registerServiceWorker = () => {
-      void navigator.serviceWorker.register("/sw.js").catch((error) => {
-        console.warn("Service worker registration failed", error);
-      });
-    };
-    if (document.readyState === "complete") {
-      registerServiceWorker();
-      return;
-    }
-    window.addEventListener("load", registerServiceWorker, { once: true });
-    return () => window.removeEventListener("load", registerServiceWorker);
-  }, []);
 
   useEffect(() => {
     // Wait for two frames so the in-app splash is visibly painted below the

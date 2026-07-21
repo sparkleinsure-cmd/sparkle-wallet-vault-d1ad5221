@@ -10,8 +10,28 @@
   "orientation": "portrait",
   "background_color": "#0E5F70",
   "theme_color": "#1B8AA0",
+  "lang": "en-ZA",
+  "dir": "ltr",
   "categories": ["finance", "productivity"],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "edge_side_panel": {
+    "preferred_width": 420
+  },
   "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icons/icon-48.webp",
       "type": "image/webp",
@@ -53,6 +73,38 @@
       "type": "image/webp",
       "sizes": "512x512",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard-wide.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide",
+      "label": "Sparkle Insure wallet dashboard"
+    },
+    {
+      "src": "/screenshots/dashboard-narrow.png",
+      "type": "image/png",
+      "sizes": "390x844",
+      "form_factor": "narrow",
+      "label": "Sparkle Insure mobile wallet dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Wallet",
+      "short_name": "Wallet",
+      "description": "Open your Sparkle Insure wallet dashboard.",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sign In",
+      "short_name": "Sign In",
+      "description": "Sign in to Sparkle Insure.",
+      "url": "/auth?mode=signin",
+      "icons": [{ "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192" }]
     }
   ]
 }

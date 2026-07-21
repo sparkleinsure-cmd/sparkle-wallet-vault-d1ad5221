@@ -1,5 +1,15 @@
-const CACHE_NAME = "sparkle-insure-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/logo.png"];
+const CACHE_NAME = "sparkle-insure-v2";
+const APP_SHELL = [
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/pwa-register.js",
+  "/pwa-install.js",
+  "/logo.png",
+  "/favicon.ico",
+  "/icons/icon-192.webp",
+  "/icons/icon-512.webp",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,10 +39,13 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put("/", copy.clone());
+            cache.put("/index.html", copy);
+          });
           return response;
         })
-        .catch(() => caches.match("/")),
+        .catch(() => caches.match("/index.html").then((cached) => cached || caches.match("/"))),
     );
     return;
   }
@@ -41,7 +54,14 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
-        if (response.ok && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/"))) {
+        if (
+          response.ok &&
+          (url.pathname.startsWith("/assets/") ||
+            url.pathname.startsWith("/icons/") ||
+            url.pathname === "/manifest.webmanifest" ||
+            url.pathname === "/pwa-install.js" ||
+            url.pathname === "/pwa-register.js")
+        ) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
