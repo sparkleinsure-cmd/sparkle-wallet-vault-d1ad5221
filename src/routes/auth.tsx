@@ -35,8 +35,6 @@ const signupSchema = z.object({
   surname: z.string().trim().min(1).max(60),
   email: z.string().trim().email().max(200),
   phone: z.string().trim().min(6).max(30),
-  bankName: z.string().trim().min(2).max(100),
-  bankAccountNumber: z.string().trim().regex(/^[0-9 -]{4,40}$/, "Enter a valid bank account number"),
   password: z.string().min(8).max(72),
 });
 
@@ -219,8 +217,6 @@ function SignUpForm() {
     surname: "",
     email: "",
     phone: "",
-    bankName: "",
-    bankAccountNumber: "",
     password: "",
   });
 
@@ -241,8 +237,6 @@ function SignUpForm() {
               first_name: form.firstName,
               surname: form.surname,
               phone: form.phone,
-              bank_name: form.bankName,
-              bank_account_number: form.bankAccountNumber,
               primary_currency: "ZAR",
             },
           },
@@ -284,14 +278,6 @@ function SignUpForm() {
       <div>
         <Label htmlFor="ph">Phone number</Label>
         <Input id="ph" required placeholder="+27 82 000 0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-      </div>
-      <div>
-        <Label htmlFor="bank-name">Registered bank name</Label>
-        <Input id="bank-name" required placeholder="e.g. FNB" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} />
-      </div>
-      <div>
-        <Label htmlFor="bank-account">Registered bank account number</Label>
-        <Input id="bank-account" inputMode="numeric" required placeholder="Your bank account number" value={form.bankAccountNumber} onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })} />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
