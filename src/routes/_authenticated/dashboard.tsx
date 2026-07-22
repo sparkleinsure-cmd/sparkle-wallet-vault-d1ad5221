@@ -8,6 +8,7 @@ import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { AccountHealthCard } from "@/components/AccountHealthCard";
+import { Button } from "@/components/ui/button";
 import { type Currency } from "@/lib/currency";
 import { useState } from "react";
 import { Gift, Loader2 } from "lucide-react";
