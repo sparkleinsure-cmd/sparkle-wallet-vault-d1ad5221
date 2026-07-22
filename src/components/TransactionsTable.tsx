@@ -20,7 +20,9 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
   const [type, setType] = useState<string>("all");
 
   const filtered = useMemo(() => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return transactions.filter((t) => {
+      if (new Date(t.created_at).getTime() < sevenDaysAgo) return false;
       const matchesType = type === "all" || t.type === type;
       const s = q.trim().toLowerCase();
       const matchesQ = !s ||
@@ -34,7 +36,10 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
   return (
     <div className="glass-card rounded-3xl p-4 md:p-6">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="font-display text-lg font-semibold">Recent activity</h2>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Recent activity</h2>
+          <p className="text-xs text-muted-foreground">Last 7 days</p>
+        </div>
         <div className="flex flex-1 gap-2 md:max-w-md">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -58,7 +63,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
           <div className="py-12 text-center text-sm text-muted-foreground">No transactions found.</div>
         )}
         {filtered.map((t) => {
-          const isDebit = t.type === "withdrawal" || t.type === "fee";
+          const isDebit = t.type === "withdrawal" || t.type === "fee" || Number(t.amount) < 0;
           const Icon = t.type === "deposit" ? ArrowDownToLine : t.type === "withdrawal" ? ArrowUpFromLine : t.type === "fee" ? CircleDollarSign : Sparkles;
           const sign = isDebit ? "-" : "+";
           const color = isDebit ? "text-rose-600" : "text-emerald-600";
@@ -81,7 +86,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
               </div>
               <div className={`font-semibold tabular-nums ${color}`}>
                 {sign}
-                {formatMoney(Number(t.amount), t.currency as Currency)}
+                {formatMoney(Math.abs(Number(t.amount)), t.currency as Currency)}
               </div>
             </div>
           );

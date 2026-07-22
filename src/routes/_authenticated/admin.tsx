@@ -142,6 +142,14 @@ function AdminPage() {
           </Button>
         </div>
 
+        <Card className="glass-card flex items-center gap-4 rounded-2xl p-5">
+          <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
+          <div>
+            <div className="text-sm text-muted-foreground">Total registered users</div>
+            <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
+          </div>
+        </Card>
+
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
             <Bell className="mr-2 h-4 w-4 text-primary" />
@@ -642,10 +650,6 @@ function PendingKycRow({
           </div>
         </div>
 
-        <Card className="glass-card flex items-center gap-4 rounded-2xl p-5">
-          <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
-          <div><div className="text-sm text-muted-foreground">Total registered users</div><div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div></div>
-        </Card>
         <div className="text-xs text-muted-foreground">Submitted for review</div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

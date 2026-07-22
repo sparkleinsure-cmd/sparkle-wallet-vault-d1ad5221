@@ -22,6 +22,12 @@ type Tx = {
   created_at: string;
 };
 
+const isDebit = (transaction: Tx) => transaction.type === "withdrawal" || transaction.type === "fee" || Number(transaction.amount) < 0;
+const signedAmount = (transaction: Tx) => {
+  const sign = isDebit(transaction) ? "-" : "+";
+  return `${sign}${formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency)}`;
+};
+
 export function StatementDialog({
   open,
   onOpenChange,
@@ -135,7 +141,7 @@ export function StatementDialog({
         format(new Date(t.created_at), "yyyy-MM-dd HH:mm"),
         t.type,
         t.currency,
-        String(t.amount),
+        signedAmount(t),
         statusLabel,
         t.description ?? "",
       ]);
@@ -188,7 +194,7 @@ export function StatementDialog({
       doc.text(t.type, 48, y);
       doc.text((t.description ?? "").slice(0, 30), 72, y);
       doc.text(statusLabel, 140, y);
-      doc.text(formatMoney(Number(t.amount), t.currency as Currency), 194, y, { align: "right" });
+      doc.text(signedAmount(t), 194, y, { align: "right" });
       y += 6;
     });
 
