@@ -15,6 +15,7 @@ import {
   adminListActiveTranches,
   adminSetKycStatus,
   adminGetKycProofUrl,
+  adminGetUserCount,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2 } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -66,6 +67,7 @@ function AdminPage() {
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
+  const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin") });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
     queryFn: () => listWithdrawals(),
@@ -639,17 +641,22 @@ function PendingKycRow({
             {review.email} {review.phone ? `· ${review.phone}` : ""}
           </div>
         </div>
+
+        <Card className="glass-card flex items-center gap-4 rounded-2xl p-5">
+          <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
+          <div><div className="text-sm text-muted-foreground">Total registered users</div><div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div></div>
+        </Card>
         <div className="text-xs text-muted-foreground">Submitted for review</div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.proof_url)}>
+        {review.proof_url && <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.proof_url)}>
           <FileDown className="mr-2 h-4 w-4" /> Open banking confirmation
-        </Button>
+        </Button>}
         <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.selfie_url)}>
           <FileDown className="mr-2 h-4 w-4" /> Open selfie
         </Button>
         <Button size="sm" className="gradient-brand text-white" disabled={busy !== null} onClick={() => reviewKyc("verified")}>
-          {busy === "verified" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Approve KYC
+          {busy === "verified" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Approve & credit R10
         </Button>
         <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => reviewKyc("rejected")}>
           {busy === "rejected" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Decline KYC

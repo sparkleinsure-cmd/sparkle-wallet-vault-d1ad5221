@@ -130,6 +130,12 @@ serve(async (req) => {
         return json({ data: { ok: true } });
       }
 
+      case "requestPayoutDetailsChange": {
+        const result = await supabase.rpc("request_payout_details_change");
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { availableAt: result.data } });
+      }
+
       case "creditDeposit": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
@@ -159,11 +165,9 @@ serve(async (req) => {
       case "requestWithdrawal": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
-        const secureBankName = requireString(data.bankName, "bank name", 2, 100);
-        const secureAccountNumber = requireString(data.accountNumber, "account number", 4, 40);
         const secureWithdrawal = await supabase.rpc("request_withdrawal_secure", {
-          p_amount: amount, p_currency: currency, p_bank_name: secureBankName,
-          p_account_number: secureAccountNumber, p_confirm_break: data.confirmBreak === true,
+          p_amount: amount, p_currency: currency, p_bank_name: null,
+          p_account_number: null, p_confirm_break: data.confirmBreak === true,
         });
         if (secureWithdrawal.error) throw new Error(secureWithdrawal.error.message);
         return json({ data: { ok: true, ...(secureWithdrawal.data ?? {}) } });
@@ -211,7 +215,7 @@ serve(async (req) => {
       }
 
       case "submitKycReview": {
-        const bankProofPath = requireString(data.bankProofPath, "banking proof", 3, 500);
+        const bankProofPath = typeof data.bankProofPath === "string" ? requireString(data.bankProofPath, "banking proof", 3, 500) : null;
         const selfiePath = requireString(data.selfiePath, "selfie", 3, 500);
         const { error } = await supabase.rpc("submit_kyc_review", { p_proof_path: bankProofPath, p_selfie_path: selfiePath });
         if (error) throw new Error(error.message);
@@ -248,12 +252,18 @@ serve(async (req) => {
           .from("profiles")
           .select("id, account_id, first_name, surname, email, phone, proof_url, selfie_url, created_at")
           .eq("kyc_status", "pending")
-          .not("proof_url", "is", null)
           .not("selfie_url", "is", null)
           .order("created_at", { ascending: false })
           .limit(100);
         if (reviews.error) throw new Error(reviews.error.message);
         return json({ data: { reviews: reviews.data ?? [] } });
+      }
+
+      case "adminGetUserCount": {
+        await assertAdmin(supabase, userId);
+        const result = await admin.from("profiles").select("id", { count: "exact", head: true });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { count: result.count ?? 0 } });
       }
 
       case "sendOtps": {

@@ -23,9 +23,10 @@ export const getAccountHealth = () => call<any>("getAccountHealth");
 export const getStatementTransactions = ({ data }: Input<{ days: number }>) => call<any[]>("getStatementTransactions", data);
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
 export const setPayoutDetails = ({ data }: Input<{ bankName: string; accountNumber: string }>) => call<{ ok: true }>("setPayoutDetails", data);
+export const requestPayoutDetailsChange = () => call<{ availableAt: string }>("requestPayoutDetailsChange");
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
-export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; bankName: string; accountNumber: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
-export const submitKycReview = ({ data }: Input<{ bankProofPath: string; selfiePath: string }>) =>
+export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
+export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfiePath: string }>) =>
   call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
 export const sendOtps = () => call<{ ok: true; delivered: boolean }>("sendOtps");
@@ -44,3 +45,4 @@ export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: str
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
+export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");

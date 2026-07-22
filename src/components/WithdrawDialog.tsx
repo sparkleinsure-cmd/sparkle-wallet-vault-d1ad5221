@@ -15,16 +15,18 @@ export function WithdrawDialog({
   currency,
   balance,
   withdrawable,
+  bankName,
+  accountLast4,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   currency: Currency;
   balance: number;
   withdrawable: number;
+  bankName?: string | null;
+  accountLast4?: string | null;
 }) {
   const [amount, setAmount] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [breakConfirm, setBreakConfirm] = useState(false);
@@ -46,8 +48,6 @@ export function WithdrawDialog({
         data: {
           amount: amt,
           currency,
-          bankName: bankName.trim(),
-          accountNumber: accountNumber.trim(),
           confirmBreak,
         },
       });
@@ -130,13 +130,8 @@ export function WithdrawDialog({
                 </div>
               )}
             </div>
-            <div>
-              <Label htmlFor="bn">Bank name</Label>
-              <Input id="bn" required value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. FNB" />
-            </div>
-            <div>
-              <Label htmlFor="an">Account number</Label>
-              <Input id="an" inputMode="numeric" required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Your bank account number" />
+            <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+              {accountLast4 ? <>Funds will be paid to your saved {bankName ?? "bank"} account ending in <strong>{accountLast4}</strong>.</> : <>Add your banking details in Settings before requesting a withdrawal.</>}
             </div>
             <Button type="submit" className="w-full gradient-brand text-white" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Request withdrawal

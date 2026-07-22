@@ -1,9 +1,9 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, Fingerprint, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, ExternalLink, Fingerprint, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMyAccount, getMe, setPayoutDetails, submitKycReview } from "@/lib/app-api";
+import { deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview } from "@/lib/app-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +18,8 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
-  const [bankProof, setBankProof] = useState<File | null>(null);
   const [selfie, setSelfie] = useState<File | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
@@ -30,34 +30,41 @@ function SettingsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const hasBankDetails = Boolean(me?.profile?.bank_name && me?.profile?.bank_account_number);
+  const bankChangeAvailableAt = me?.profile?.bank_details_change_requested_at ? new Date(new Date(me.profile.bank_details_change_requested_at).getTime() + 7 * 864e5) : null;
+  const canEditBank = !hasBankDetails || Boolean(bankChangeAvailableAt && bankChangeAvailableAt.getTime() <= Date.now());
   useEffect(() => { if (biometricSupported()) void biometricIsReady().then(setBiometricEnabled).catch(() => setBiometricEnabled(false)); }, []);
 
   const submitKyc = async () => {
-    if (!bankProof || !selfie) return toast.error("Upload both your proof of banking details and a selfie.");
-    if (bankProof.size > 5 * 1024 * 1024 || selfie.size > 8 * 1024 * 1024) return toast.error("Banking proof must be under 5MB and selfie under 8MB.");
+    if (!hasBankDetails) return toast.error("Save your banking details before submitting your selfie.");
+    if (!selfie) return toast.error("Take or choose a clear selfie first.");
+    if (selfie.size > 8 * 1024 * 1024) return toast.error("Your selfie must be under 8MB.");
     setIsSubmittingKyc(true);
     try {
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
       if (!userId) throw new Error("Please sign in again.");
       const stamp = Date.now();
-      const bankPath = `${userId}/banking-${stamp}.${bankProof.name.split(".").pop() || "bin"}`;
       const selfiePath = `${userId}/selfie-${stamp}.${selfie.name.split(".").pop() || "jpg"}`;
-      const [bankUpload, selfieUpload] = await Promise.all([
-        supabase.storage.from("kyc").upload(bankPath, bankProof, { upsert: false, contentType: bankProof.type || "application/octet-stream" }),
-        supabase.storage.from("kyc").upload(selfiePath, selfie, { upsert: false, contentType: selfie.type || "image/jpeg" }),
-      ]);
-      if (bankUpload.error) throw bankUpload.error;
+      const selfieUpload = await supabase.storage.from("kyc").upload(selfiePath, selfie, { upsert: false, contentType: selfie.type || "image/jpeg" });
       if (selfieUpload.error) throw selfieUpload.error;
-      await submitKycReview({ data: { bankProofPath: bankPath, selfiePath } });
-      toast.success("KYC documents submitted for administrator review.");
-      setBankProof(null); setSelfie(null);
+      await submitKycReview({ data: { selfiePath } });
+      toast.success("Selfie submitted. Your R10 bonus will be credited after admin approval.");
+      setSelfie(null); setSelfiePreview(null);
       await qc.invalidateQueries({ queryKey: ["me"] });
     } catch (error: any) {
       toast.error(error.message ?? "Unable to submit KYC documents.");
     } finally {
       setIsSubmittingKyc(false);
     }
+  };
+
+  const chooseSelfie = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast.error("Please choose an image.");
+    setSelfie(file);
+    if (selfiePreview) URL.revokeObjectURL(selfiePreview);
+    setSelfiePreview(URL.createObjectURL(file));
   };
 
   const savePayoutDetails = async () => {
@@ -124,15 +131,18 @@ function SettingsPage() {
         {!biometricSupported() ? <p className="text-sm text-muted-foreground">Available in the Sparkle mobile app on phones with fingerprint or face unlock.</p> : biometricEnabled ? <div className="space-y-3"><p className="text-sm text-muted-foreground">Biometric sign-in is enabled on this device.</p><Button variant="outline" disabled={biometricLoading} onClick={async () => { setBiometricLoading(true); try { await disableBiometric(); setBiometricEnabled(false); toast.success("Biometric sign-in disabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }}>Disable biometric sign-in</Button></div> : <div className="space-y-3"><p className="text-sm text-muted-foreground">Enter your password once to enable secure fingerprint or face sign-in on this phone. No email confirmation is needed.</p><Input type="password" autoComplete="current-password" value={biometricPassword} onChange={(e) => setBiometricPassword(e.target.value)} placeholder="Current password" /><Button disabled={biometricLoading || !biometricPassword} onClick={async () => { if (!me?.profile?.email) return; setBiometricLoading(true); try { await enableBiometric(me.profile.email, biometricPassword); setBiometricPassword(""); setBiometricEnabled(true); toast.success("Biometric sign-in enabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }} className="gradient-brand text-white">Enable biometric sign-in</Button></div>}
       </section>
 
-      <section className="rounded-lg border bg-background p-4 shadow-sm">
+      <section id="verification" className="scroll-mt-4 rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <Landmark className="h-4 w-4 text-primary" />
           <h2 className="font-medium">Registered payout details</h2>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          Your withdrawal request is checked against these details by an administrator. Current bank: {me?.profile?.bank_name ?? "not added"}.
+          Withdrawals are paid only to this saved account. Current bank: {me?.profile?.bank_name ?? "not added"}.
         </p>
-        <div className="space-y-3">
+        {hasBankDetails && !canEditBank ? <div className="space-y-3">
+          <div className="rounded-md border bg-muted/40 p-3 text-sm">{me.profile.bank_name} · account ending {String(me.profile.bank_account_number).slice(-4)}</div>
+          {bankChangeAvailableAt ? <p className="text-sm text-muted-foreground">Editing unlocks on {bankChangeAvailableAt.toLocaleDateString("en-ZA", { dateStyle: "medium" })}.</p> : <Button type="button" variant="outline" onClick={async () => { try { const result = await requestPayoutDetailsChange(); toast.success(`Editing unlocks on ${new Date(result.availableAt).toLocaleDateString("en-ZA", { dateStyle: "medium" })}.`); await qc.invalidateQueries({ queryKey: ["me"] }); } catch (e:any) { toast.error(e.message); } }}>Request to update banking details</Button>}
+        </div> : <div className="space-y-3">
           <div>
             <Label htmlFor="registered-bank">Bank name</Label>
             <Input id="registered-bank" value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="e.g. FNB" />
@@ -144,29 +154,29 @@ function SettingsPage() {
           <Button type="button" onClick={savePayoutDetails} disabled={isSavingPayoutDetails} className="gradient-brand text-white">
             {isSavingPayoutDetails ? "Saving…" : "Save payout details"}
           </Button>
-        </div>
+        </div>}
       </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <h2 className="font-medium">Withdrawal verification</h2>
+          <h2 className="font-medium">Welcome bonus selfie</h2>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          You can use Sparkle and deposit immediately. Submit these documents before requesting a withdrawal; an administrator must approve them first.
+          Take a clear, front-facing selfie. An administrator must approve it before your R10 welcome bonus is credited to your growing account.
           {me?.profile?.kyc_status ? ` Current status: ${me.profile.kyc_status}.` : ""}
         </p>
         <div className="space-y-3">
-          <div>
-            <Label htmlFor="bank-proof">Proof of banking details</Label>
-            <Input id="bank-proof" type="file" accept="image/*,application/pdf" onChange={(event) => setBankProof(event.target.files?.[0] ?? null)} />
+          {selfiePreview && <img src={selfiePreview} alt="Selfie preview" className="mx-auto aspect-square w-full max-w-xs rounded-xl object-cover" />}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant="outline" asChild><Label htmlFor="take-selfie" className="cursor-pointer"><Camera className="mr-2 h-4 w-4" />Take selfie</Label></Button>
+            <Input id="take-selfie" className="sr-only" type="file" accept="image/*" capture="user" onChange={(event) => chooseSelfie(event.target.files?.[0] ?? null)} />
+            <Button type="button" variant="outline" asChild><Label htmlFor="choose-selfie" className="cursor-pointer">Choose existing photo</Label></Button>
+            <Input id="choose-selfie" className="sr-only" type="file" accept="image/*" onChange={(event) => chooseSelfie(event.target.files?.[0] ?? null)} />
           </div>
-          <div>
-            <Label htmlFor="kyc-selfie">Photo of yourself</Label>
-            <Input id="kyc-selfie" type="file" accept="image/*" onChange={(event) => setSelfie(event.target.files?.[0] ?? null)} />
-          </div>
+          <p className="text-xs text-muted-foreground">“Take selfie” opens the front camera on supported phones. If camera access is unavailable, choose a photo instead.</p>
           <Button type="button" onClick={submitKyc} disabled={isSubmittingKyc} className="gradient-brand text-white">
-            {isSubmittingKyc ? "Submitting…" : "Submit documents for review"}
+            {isSubmittingKyc ? "Submitting…" : me?.profile?.kyc_status === "pending" ? "Resubmit selfie for review" : "Submit selfie for review"}
           </Button>
         </div>
       </section>
