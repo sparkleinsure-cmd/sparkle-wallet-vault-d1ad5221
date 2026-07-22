@@ -28,16 +28,29 @@ const signedAmount = (transaction: Tx) => {
   return `${sign}${formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency)}`;
 };
 
+const createElectronicStamp = () => ({
+  reference: `SPK-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+  generatedAt: new Date(),
+});
+
 export function StatementDialog({
   open,
   onOpenChange,
   accountId,
   fullName,
+  phone,
+  streetAddress,
+  province,
+  postalCode,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   accountId: string;
   fullName: string;
+  phone?: string | null;
+  streetAddress?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
 }) {
   const [range, setRange] = useState<"7" | "30" | "90">("30");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -131,7 +144,16 @@ export function StatementDialog({
   const downloadCsv = async () => {
     const transactions = await fetchTransactions();
     if (!transactions) return;
-    const rows = [["Date", "Type", "Currency", "Amount", "Status", "Description"]];
+    const stamp = createElectronicStamp();
+    const address = [streetAddress, province, postalCode].filter(Boolean).join(", ");
+    const rows = [
+      ["Electronic stamp", "Sparkle Insure — Electronically generated statement"],
+      ["Statement reference", stamp.reference],
+      ["Stamped at", format(stamp.generatedAt, "yyyy-MM-dd HH:mm:ss")],
+      ["Account holder", fullName], ["Account number (User ID)", accountId],
+      ["Phone number", phone ?? "Not provided"], ["Physical address", address || "Not provided"], [],
+      ["Date", "Type", "Currency", "Amount", "Status", "Description"],
+    ];
     transactions.forEach((t) => {
       if (t.type === "bonus" && (t.description ?? "").startsWith("Account top up")) {
         t.status = "Topped up";
@@ -156,6 +178,7 @@ export function StatementDialog({
     const transactions = await fetchTransactions();
     if (!transactions) return;
     try {
+    const stamp = createElectronicStamp();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     doc.setFontSize(18);
     doc.setTextColor(30, 90, 110);
@@ -164,8 +187,10 @@ export function StatementDialog({
     doc.setTextColor(60);
     doc.text(`Account holder: ${fullName}`, 14, 30);
     doc.text(`Account ID: ${accountId}`, 14, 36);
-    doc.text(`Period: last ${range} days`, 14, 42);
-    doc.text(`Generated: ${format(new Date(), "d MMM yyyy HH:mm")}`, 14, 48);
+    doc.text(`Phone: ${phone || "Not provided"}`, 14, 42);
+    doc.text(`Physical address: ${[streetAddress, province, postalCode].filter(Boolean).join(", ") || "Not provided"}`, 14, 48);
+    doc.text(`Period: last ${range} days`, 14, 54);
+    doc.text(`Generated: ${format(new Date(), "d MMM yyyy HH:mm")}`, 14, 60);
 
     const drawTableHeader = (y: number) => {
       doc.setFontSize(9);
@@ -179,7 +204,7 @@ export function StatementDialog({
       return y + 6;
     };
 
-    let y = drawTableHeader(60);
+    let y = drawTableHeader(72);
 
     transactions.forEach((t) => {
       if (t.type === "bonus" && (t.description ?? "").startsWith("Account top up")) {
@@ -197,6 +222,26 @@ export function StatementDialog({
       doc.text(signedAmount(t), 194, y, { align: "right" });
       y += 6;
     });
+
+    if (y > 245) { doc.addPage(); y = 30; }
+    const stampY = Math.max(y + 22, 230);
+    doc.setDrawColor(30, 130, 145);
+    doc.setTextColor(30, 130, 145);
+    doc.setLineWidth(0.8);
+    doc.circle(166, stampY, 18, "S");
+    doc.circle(166, stampY, 15.5, "S");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("SPARKLE INSURE", 166, stampY - 5, { align: "center" });
+    doc.setFontSize(6.5);
+    doc.text("ELECTRONICALLY", 166, stampY, { align: "center" });
+    doc.text("GENERATED", 166, stampY + 3.5, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(70);
+    doc.setFontSize(7);
+    doc.text(`Electronic stamp: ${stamp.reference}`, 14, stampY - 3);
+    doc.text(`Stamped: ${format(stamp.generatedAt, "d MMM yyyy HH:mm:ss")}`, 14, stampY + 2);
+    doc.text("This statement was generated electronically by Sparkle Insure and requires no handwritten signature.", 14, stampY + 7);
 
     const blob = new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
     await saveBlob(blob, `sparkle-statement-${range}d.pdf`, "application/pdf");

@@ -121,6 +121,10 @@ function DashboardPage() {
         onOpenChange={setSOpen}
         accountId={profile.account_id}
         fullName={`${profile.first_name} ${profile.surname}`}
+        phone={profile.phone}
+        streetAddress={profile.street_address}
+        province={profile.province}
+        postalCode={profile.postal_code}
       />
     </div>
   );

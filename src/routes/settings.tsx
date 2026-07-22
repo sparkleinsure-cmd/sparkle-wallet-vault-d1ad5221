@@ -1,9 +1,9 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Camera, ExternalLink, Landmark, Mail, ShieldCheck, Trash2, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview } from "@/lib/app-api";
+import { deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview, updateProfileContact } from "@/lib/app-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +23,31 @@ function SettingsPage() {
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [isSavingPayoutDetails, setIsSavingPayoutDetails] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [isSavingContact, setIsSavingContact] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const hasBankDetails = Boolean(me?.profile?.bank_name && me?.profile?.bank_account_number);
   const bankChangeAvailableAt = me?.profile?.bank_details_change_requested_at ? new Date(new Date(me.profile.bank_details_change_requested_at).getTime() + 7 * 864e5) : null;
   const canEditBank = !hasBankDetails || Boolean(bankChangeAvailableAt && bankChangeAvailableAt.getTime() <= Date.now());
+  useEffect(() => {
+    if (!me?.profile) return;
+    setPhone(me.profile.phone ?? ""); setStreetAddress(me.profile.street_address ?? "");
+    setProvince(me.profile.province ?? ""); setPostalCode(me.profile.postal_code ?? "");
+  }, [me?.profile?.id, me?.profile?.phone, me?.profile?.street_address, me?.profile?.province, me?.profile?.postal_code]);
+
+  const saveContact = async () => {
+    setIsSavingContact(true);
+    try {
+      await updateProfileContact({ data: { phone: phone.trim(), streetAddress: streetAddress.trim(), province: province.trim(), postalCode: postalCode.trim() } });
+      toast.success("Contact details updated."); await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (error:any) { toast.error(error.message ?? "Unable to update contact details."); }
+    finally { setIsSavingContact(false); }
+  };
 
   const submitKyc = async () => {
     if (!hasBankDetails) return toast.error("Save your banking details before submitting your selfie.");
@@ -123,12 +142,18 @@ function SettingsPage() {
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-4 flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" /><h2 className="font-medium">Your details</h2></div>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Full name</dt><dd className="mt-1 font-medium">{me?.profile ? `${me.profile.first_name} ${me.profile.surname}`.trim() : "—"}</dd></div>
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Sparkle account ID</dt><dd className="mt-1 font-mono font-medium">{me?.profile?.account_id ?? "—"}</dd></div>
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Email address</dt><dd className="mt-1 break-all font-medium">{me?.profile?.email ?? "—"}</dd></div>
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Phone number</dt><dd className="mt-1 font-medium">{me?.profile?.phone ?? "—"}</dd></div>
+        <dl className="mb-4 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Name</dt><dd className="mt-1 font-medium">{me?.profile?.first_name ?? "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Surname</dt><dd className="mt-1 font-medium">{me?.profile?.surname ?? "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Account number (User ID)</dt><dd className="mt-1 font-mono font-medium">{me?.profile?.account_id ?? "—"}</dd></div>
         </dl>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><Label htmlFor="profile-phone">Phone number</Label><Input id="profile-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+          <div><Label htmlFor="street-address">Street address</Label><Input id="street-address" value={streetAddress} onChange={(e) => setStreetAddress(e.target.value)} placeholder="Street name and number" /></div>
+          <div><Label htmlFor="province">Province</Label><Input id="province" value={province} onChange={(e) => setProvince(e.target.value)} /></div>
+          <div><Label htmlFor="postal-code">Postal code</Label><Input id="postal-code" inputMode="numeric" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} /></div>
+        </div>
+        <Button type="button" onClick={saveContact} disabled={isSavingContact} className="mt-4 gradient-brand text-white">{isSavingContact ? "Saving…" : "Save contact details"}</Button>
       </section>
 
       <section id="verification" className="scroll-mt-4 rounded-lg border bg-background p-4 shadow-sm">

@@ -136,6 +136,18 @@ serve(async (req) => {
         return json({ data: { availableAt: result.data } });
       }
 
+      case "updateProfileContact": {
+        const phone = requireString(data.phone, "phone number", 8, 30);
+        const streetAddress = requireString(data.streetAddress, "street address", 3, 150);
+        const province = requireString(data.province, "province", 2, 80);
+        const postalCode = requireString(data.postalCode, "postal code", 3, 10);
+        const result = await supabase.rpc("update_profile_contact", {
+          p_phone: phone, p_street_address: streetAddress, p_province: province, p_postal_code: postalCode,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
+      }
+
       case "creditDeposit": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
