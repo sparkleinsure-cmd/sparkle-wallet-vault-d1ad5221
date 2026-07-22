@@ -143,8 +143,8 @@ function SettingsPage() {
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-4 flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" /><h2 className="font-medium">Your details</h2></div>
         <dl className="mb-4 grid gap-3 text-sm sm:grid-cols-3">
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Name</dt><dd className="mt-1 font-medium">{me?.profile?.first_name ?? "—"}</dd></div>
-          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Surname</dt><dd className="mt-1 font-medium">{me?.profile?.surname ?? "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Full name</dt><dd className="mt-1 font-medium">{me?.profile ? `${me.profile.first_name} ${me.profile.surname}`.trim() : "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Email address</dt><dd className="mt-1 break-all font-medium">{me?.profile?.email ?? "—"}</dd></div>
           <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Account number (User ID)</dt><dd className="mt-1 font-mono font-medium">{me?.profile?.account_id ?? "—"}</dd></div>
         </dl>
         <div className="grid gap-3 sm:grid-cols-2">
