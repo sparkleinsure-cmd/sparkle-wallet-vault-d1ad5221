@@ -1,7 +1,7 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Camera, ExternalLink, Fingerprint, Landmark, Mail, ShieldCheck, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Camera, ExternalLink, Landmark, Mail, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview } from "@/lib/app-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { biometricIsReady, biometricSupported, disableBiometric, enableBiometric } from "@/lib/biometric";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -24,16 +23,12 @@ function SettingsPage() {
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [isSavingPayoutDetails, setIsSavingPayoutDetails] = useState(false);
-  const [biometricPassword, setBiometricPassword] = useState("");
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricLoading, setBiometricLoading] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const hasBankDetails = Boolean(me?.profile?.bank_name && me?.profile?.bank_account_number);
   const bankChangeAvailableAt = me?.profile?.bank_details_change_requested_at ? new Date(new Date(me.profile.bank_details_change_requested_at).getTime() + 7 * 864e5) : null;
   const canEditBank = !hasBankDetails || Boolean(bankChangeAvailableAt && bankChangeAvailableAt.getTime() <= Date.now());
-  useEffect(() => { if (biometricSupported()) void biometricIsReady().then(setBiometricEnabled).catch(() => setBiometricEnabled(false)); }, []);
 
   const submitKyc = async () => {
     if (!hasBankDetails) return toast.error("Save your banking details before submitting your selfie.");
@@ -127,8 +122,13 @@ function SettingsPage() {
       </div>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2"><Fingerprint className="h-4 w-4 text-primary" /><h2 className="font-medium">Biometric sign-in</h2></div>
-        {!biometricSupported() ? <p className="text-sm text-muted-foreground">Available in the Sparkle mobile app on phones with fingerprint or face unlock.</p> : biometricEnabled ? <div className="space-y-3"><p className="text-sm text-muted-foreground">Biometric sign-in is enabled on this device.</p><Button variant="outline" disabled={biometricLoading} onClick={async () => { setBiometricLoading(true); try { await disableBiometric(); setBiometricEnabled(false); toast.success("Biometric sign-in disabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }}>Disable biometric sign-in</Button></div> : <div className="space-y-3"><p className="text-sm text-muted-foreground">Enter your password once to enable secure fingerprint or face sign-in on this phone. No email confirmation is needed.</p><Input type="password" autoComplete="current-password" value={biometricPassword} onChange={(e) => setBiometricPassword(e.target.value)} placeholder="Current password" /><Button disabled={biometricLoading || !biometricPassword} onClick={async () => { if (!me?.profile?.email) return; setBiometricLoading(true); try { await enableBiometric(me.profile.email, biometricPassword); setBiometricPassword(""); setBiometricEnabled(true); toast.success("Biometric sign-in enabled."); } catch (e:any) { toast.error(e.message); } finally { setBiometricLoading(false); } }} className="gradient-brand text-white">Enable biometric sign-in</Button></div>}
+        <div className="mb-4 flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" /><h2 className="font-medium">Your details</h2></div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Full name</dt><dd className="mt-1 font-medium">{me?.profile ? `${me.profile.first_name} ${me.profile.surname}`.trim() : "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Sparkle account ID</dt><dd className="mt-1 font-mono font-medium">{me?.profile?.account_id ?? "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Email address</dt><dd className="mt-1 break-all font-medium">{me?.profile?.email ?? "—"}</dd></div>
+          <div className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Phone number</dt><dd className="mt-1 font-medium">{me?.profile?.phone ?? "—"}</dd></div>
+        </dl>
       </section>
 
       <section id="verification" className="scroll-mt-4 rounded-lg border bg-background p-4 shadow-sm">
