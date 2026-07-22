@@ -47,8 +47,6 @@ function AuthPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session && mode !== "reset") navigate({ to: "/dashboard" });
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") setTab("reset"); });
-    return () => listener.subscription.unsubscribe();
   }, [navigate, mode]);
 
   return (
@@ -218,24 +216,24 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
-  return (
-    <form className="space-y-4" onSubmit={async (event) => {
-      event.preventDefault();
-      if (password.length < 8) return toast.error("Password must contain at least 8 characters.");
-      if (password !== confirmation) return toast.error("Passwords do not match.");
-      setLoading(true);
-      const { error } = await supabase.auth.updateUser({ password });
-      setLoading(false);
-      if (error) return toast.error(error.message);
-      toast.success("Password updated successfully.");
-      navigate({ to: "/dashboard", replace: true });
-    }}>
-      <p className="text-sm text-muted-foreground">Enter and confirm your new password below.</p>
-      <div><Label htmlFor="new-password">New password</Label><PasswordInput id="new-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} /></div>
-      <div><Label htmlFor="confirm-password">Confirm new password</Label><PasswordInput id="confirm-password" minLength={8} autoComplete="new-password" value={confirmation} onChange={setConfirmation} /></div>
-      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Update password</Button>
-    </form>
-  );
+  return <form className="space-y-4" onSubmit={async (event) => {
+    event.preventDefault();
+    if (password.length < 8) return toast.error("Password must contain at least 8 characters.");
+    if (password !== confirmation) return toast.error("Passwords do not match.");
+    setLoading(true);
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) { setLoading(false); return toast.error("This recovery link is invalid or expired. Request a new link."); }
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Password updated successfully.");
+    navigate({ to: "/dashboard", replace: true });
+  }}>
+    <p className="text-sm text-muted-foreground">Enter and confirm your new password below.</p>
+    <div><Label htmlFor="new-password">New password</Label><PasswordInput id="new-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} /></div>
+    <div><Label htmlFor="confirm-password">Confirm new password</Label><PasswordInput id="confirm-password" minLength={8} autoComplete="new-password" value={confirmation} onChange={setConfirmation} /></div>
+    <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Update password</Button>
+  </form>;
 }
 
 function SignUpForm() {
@@ -288,7 +286,7 @@ function SignUpForm() {
         let session = (await supabase.auth.getSession()).data.session;
         if (!session && !data.session) {
           setLoading(false);
-          toast.success("Check your email for the Sparkle verification link. Open it, then sign in to complete your identity review.", { duration: 10_000 });
+          toast.success("Check your email and tap the verification link to verify your account. You can then sign in.", { duration: 10_000 });
           navigate({ to: "/auth", search: { mode: "signin" } });
           return;
         }
