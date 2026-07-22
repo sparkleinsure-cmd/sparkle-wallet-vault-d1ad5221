@@ -11,10 +11,10 @@ import { Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { biometricIsReady, biometricSignIn } from "@/lib/biometric";
 import { Capacitor } from "@capacitor/core";
 
-const authRedirectUrl = () =>
+const authRedirectUrl = (mode: "signin" | "reset" = "signin") =>
   Capacitor.isNativePlatform()
-    ? "com.sparkleinsure.app://auth/confirm"
-    : `${window.location.origin}/auth?mode=signin`;
+    ? `com.sparkleinsure.app://auth/confirm?mode=${mode}`
+    : `${window.location.origin}/auth?mode=${mode}`;
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/auth")({
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({
-    mode: (s.mode === "signup" ? "signup" : "signin") as "signup" | "signin",
+    mode: (s.mode === "signup" ? "signup" : s.mode === "reset" ? "reset" : "signin") as "signup" | "signin" | "reset",
   }),
   component: AuthPage,
 });
@@ -34,20 +34,22 @@ const signupSchema = z.object({
   firstName: z.string().trim().min(1).max(60),
   surname: z.string().trim().min(1).max(60),
   email: z.string().trim().email().max(200),
-  phone: z.string().trim().min(6).max(30),
+  phone: z.string().trim().refine((value) => /^\+?[0-9 ()-]{8,24}$/.test(value) && value.replace(/\D/g, "").length >= 8 && value.replace(/\D/g, "").length <= 15, "Enter a valid phone number with 8 to 15 digits"),
   password: z.string().min(8).max(72),
 });
 
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"signin" | "signup">(mode);
+  const [tab, setTab] = useState<"signin" | "signup" | "reset">(mode);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
+      if (data.session && mode !== "reset") navigate({ to: "/dashboard" });
     });
-  }, [navigate]);
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") setTab("reset"); });
+    return () => listener.subscription.unsubscribe();
+  }, [navigate, mode]);
 
   return (
     <div className="grid min-h-screen md:grid-cols-2">
@@ -74,9 +76,9 @@ function AuthPage() {
         <Card className="glass-card w-full max-w-md rounded-3xl p-8">
           <div className="mb-6 flex items-center justify-between">
             <h1 className="font-display text-2xl font-bold">
-              {tab === "signin" ? "Welcome back" : "Open your wallet"}
+              {tab === "signin" ? "Welcome back" : tab === "reset" ? "Set a new password" : "Open your wallet"}
             </h1>
-            <div className="flex rounded-full border border-border p-1 text-xs">
+            {tab !== "reset" && <div className="flex rounded-full border border-border p-1 text-xs">
               <button
                 onClick={() => setTab("signin")}
                 className={`rounded-full px-3 py-1 ${tab === "signin" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
@@ -89,9 +91,10 @@ function AuthPage() {
               >
                 Sign up
               </button>
-            </div>
+            </div>}
           </div>
-          {tab === "signin" ? <SignInForm /> : <SignUpForm />}
+          {tab === "signin" ? <SignInForm /> : tab === "reset" ? <ResetPasswordForm /> : <SignUpForm />}
+          {tab !== "reset" && <>
           <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
           </div>
@@ -109,6 +112,7 @@ function AuthPage() {
           >
             Continue with Google
           </Button>
+          </>}
         </Card>
       </div>
     </div>
@@ -189,7 +193,7 @@ function SignInForm() {
               if (!email.trim()) return toast.error("Enter your email above first.");
               setResetting(true);
               const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: authRedirectUrl(),
+                redirectTo: authRedirectUrl("reset"),
               });
               setResetting(false);
               if (error) return toast.error(error.message);
@@ -205,6 +209,31 @@ function SignInForm() {
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign in
       </Button>
       {biometricReady && <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={async () => { setLoading(true); try { await biometricSignIn(); toast.success("Signed in securely."); navigate({ to: "/dashboard" }); } catch (error: any) { toast.error(error.message ?? "Biometric sign-in was not completed."); } finally { setLoading(false); } }}><Fingerprint className="mr-2 h-4 w-4" /> Sign in with biometrics</Button>}
+    </form>
+  );
+}
+
+function ResetPasswordForm() {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [loading, setLoading] = useState(false);
+  return (
+    <form className="space-y-4" onSubmit={async (event) => {
+      event.preventDefault();
+      if (password.length < 8) return toast.error("Password must contain at least 8 characters.");
+      if (password !== confirmation) return toast.error("Passwords do not match.");
+      setLoading(true);
+      const { error } = await supabase.auth.updateUser({ password });
+      setLoading(false);
+      if (error) return toast.error(error.message);
+      toast.success("Password updated successfully.");
+      navigate({ to: "/dashboard", replace: true });
+    }}>
+      <p className="text-sm text-muted-foreground">Enter and confirm your new password below.</p>
+      <div><Label htmlFor="new-password">New password</Label><PasswordInput id="new-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} /></div>
+      <div><Label htmlFor="confirm-password">Confirm new password</Label><PasswordInput id="confirm-password" minLength={8} autoComplete="new-password" value={confirmation} onChange={setConfirmation} /></div>
+      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Update password</Button>
     </form>
   );
 }
@@ -228,15 +257,22 @@ function SignUpForm() {
         const parse = signupSchema.safeParse(form);
         if (!parse.success) return toast.error(parse.error.issues[0].message);
         setLoading(true);
+        const email = form.email.trim().toLowerCase();
+        const phone = form.phone.trim();
+        const availability = await supabase.rpc("check_signup_availability" as any, { p_email: email, p_phone: phone } as any);
+        if (availability.error) { setLoading(false); return toast.error(availability.error.message); }
+        const existing = availability.data as any;
+        if (existing?.emailExists) { setLoading(false); return toast.error("An account with this email already exists. Sign in or reset your password."); }
+        if (existing?.phoneExists) { setLoading(false); return toast.error("An account with this phone number already exists."); }
         const { data, error } = await supabase.auth.signUp({
-          email: form.email,
+          email,
           password: form.password,
           options: {
             emailRedirectTo: authRedirectUrl(),
             data: {
               first_name: form.firstName,
               surname: form.surname,
-              phone: form.phone,
+              phone,
               primary_currency: "ZAR",
             },
           },
