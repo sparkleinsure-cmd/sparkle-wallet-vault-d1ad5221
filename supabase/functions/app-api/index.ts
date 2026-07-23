@@ -51,6 +51,12 @@ async function assertAdmin(supabase: any, userId: string) {
   if (!data) throw new Error("Forbidden");
 }
 
+async function sha256(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -74,6 +80,17 @@ serve(async (req) => {
 
     switch (action) {
       case "getMe": {
+        const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+        const clientIp = req.headers.get("cf-connecting-ip") ?? forwardedFor;
+        if (clientIp) {
+          // Key the hash so retained network signals cannot be reversed by
+          // enumerating the relatively small IPv4 address space.
+          const networkHash = await sha256(`${serviceRoleKey}:network:${clientIp}`);
+          const remembered = await admin.rpc("remember_signup_signal_hash", {
+            p_user_id: userId, p_signal_type: "network", p_signal_hash: networkHash,
+          });
+          if (remembered.error) console.error("Could not remember network signup signal", remembered.error.message);
+        }
         const [profileRes, walletsRes, txRes, rolesRes, tranchesRes] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
           supabase.from("wallets").select("*").eq("user_id", userId).order("currency"),
@@ -266,13 +283,20 @@ serve(async (req) => {
       case "deleteMyAccount": {
         // Remove private files first; deleting the auth user then cascades the
         // profile, wallet, transaction, tranche, and role records.
-        for (const bucket of ["kyc", "deposits"]) {
+        for (const bucket of ["kyc", "deposits", "insurance", "community"]) {
           const listed = await admin.storage.from(bucket).list(userId, { limit: 1000 });
           if (!listed.error && listed.data?.length) {
             await admin.storage.from(bucket).remove(listed.data.map((file) => `${userId}/${file.name}`));
           }
         }
-        const deleted = await admin.auth.admin.deleteUser(userId, true);
+        // Reviewer references intentionally do not cascade because historical
+        // decisions remain visible. Detach them before an administrator deletes
+        // their own account so the Auth deletion cannot be blocked.
+        await admin.from("insurance_claims").update({ reviewed_by: null }).eq("reviewed_by", userId);
+        await admin.from("insurance_applications").update({ reviewed_by: null }).eq("reviewed_by", userId);
+        // Hard-delete the Auth identity. Passing `true` here soft-deletes the
+        // user and keeps the email reserved, preventing a clean re-registration.
+        const deleted = await admin.auth.admin.deleteUser(userId);
         if (deleted.error) throw new Error(deleted.error.message);
         return json({ data: { ok: true } });
       }

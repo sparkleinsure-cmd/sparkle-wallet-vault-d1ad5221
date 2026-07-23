@@ -118,7 +118,7 @@ function SettingsPage() {
       await supabase.auth.signOut();
 
       // Redirect to signup/auth screen
-      navigate({ to: "/auth/signup", replace: true });
+      navigate({ to: "/auth", search: { mode: "signup" }, replace: true });
     } catch (error) {
       console.error("Delete account error:", error);
       alert("We could not delete your account. Please contact support@sparkleinsure.com if the problem continues.");
@@ -212,7 +212,7 @@ function SettingsPage() {
           <h2 className="font-medium">Delete account</h2>
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
-          Request permanent deletion of your account and all associated data. This action cannot be undone.
+          Permanently delete your account and active records. Hashed signup and device signals are retained only to prevent another welcome bonus. This action cannot be undone.
         </p>
 
         <div className="space-y-3">

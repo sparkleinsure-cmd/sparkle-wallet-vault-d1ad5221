@@ -38,6 +38,23 @@ const signupSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
+function getSignupDeviceContext() {
+  const storageKey = "sparkle-installation-id";
+  let installationId = localStorage.getItem(storageKey);
+  if (!installationId) {
+    installationId = crypto.randomUUID();
+    localStorage.setItem(storageKey, installationId);
+  }
+  const systemFingerprint = [
+    Capacitor.getPlatform(),
+    navigator.userAgent,
+    navigator.language,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    `${screen.width}x${screen.height}x${screen.colorDepth}`,
+  ].join("|");
+  return { installationId, systemFingerprint };
+}
+
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
@@ -262,6 +279,7 @@ function SignUpForm() {
         const existing = availability.data as any;
         if (existing?.emailExists) { setLoading(false); return toast.error("An account with this email already exists. Sign in or reset your password."); }
         if (existing?.phoneExists) { setLoading(false); return toast.error("An account with this phone number already exists."); }
+        const deviceContext = getSignupDeviceContext();
         const { data, error } = await supabase.auth.signUp({
           email,
           password: form.password,
@@ -272,6 +290,8 @@ function SignUpForm() {
               surname: form.surname,
               phone,
               primary_currency: "ZAR",
+              installation_id: deviceContext.installationId,
+              system_fingerprint: deviceContext.systemFingerprint,
             },
           },
         });
