@@ -115,7 +115,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        {!profile.welcome_bonus_credited_at && (
+        {!(profile.welcome_bonus_claimed_at ?? profile.welcome_bonus_credited_at) && (
           <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
             <div className="flex gap-3">
               <Gift className="mt-0.5 h-5 w-5 shrink-0 text-primary" />

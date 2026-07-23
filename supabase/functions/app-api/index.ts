@@ -107,7 +107,28 @@ serve(async (req) => {
           supabase.from("deposit_tranches").select("*").eq("user_id", userId).gt("remaining", 0).order("created_at"),
         ]);
         if (profileRes.error) throw new Error(profileRes.error.message);
-        return json({ data: { profile: profileRes.data, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
+        let welcomeBonusClaimedAt = profileRes.data?.welcome_bonus_credited_at ?? null;
+        if (!welcomeBonusClaimedAt) {
+          const signals = await admin.from("signup_risk_signals").select("signal_type,signal_hash").eq("user_id", userId);
+          if (signals.error) throw new Error(signals.error.message);
+          const hashes = [...new Set((signals.data ?? []).map((signal: any) => signal.signal_hash))];
+          if (hashes.length) {
+            const history = await admin
+              .from("signup_identity_history")
+              .select("signal_type,signal_hash,bonus_claimed_at")
+              .in("signal_hash", hashes)
+              .not("bonus_claimed_at", "is", null);
+            if (history.error) throw new Error(history.error.message);
+            const currentSignals = new Set((signals.data ?? []).map((signal: any) => `${signal.signal_type}:${signal.signal_hash}`));
+            welcomeBonusClaimedAt = (history.data ?? [])
+              .filter((entry: any) => currentSignals.has(`${entry.signal_type}:${entry.signal_hash}`))
+              .map((entry: any) => entry.bonus_claimed_at)
+              .filter(Boolean)
+              .sort()[0] ?? null;
+          }
+        }
+        const profile = profileRes.data ? { ...profileRes.data, welcome_bonus_claimed_at: welcomeBonusClaimedAt } : null;
+        return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
       }
 
       case "getInsuranceDashboard": {

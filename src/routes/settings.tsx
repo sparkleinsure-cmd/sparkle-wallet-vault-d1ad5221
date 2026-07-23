@@ -31,6 +31,7 @@ function SettingsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const welcomeBonusClaimedAt = me?.profile?.welcome_bonus_claimed_at ?? me?.profile?.welcome_bonus_credited_at ?? null;
   const hasBankDetails = Boolean(me?.profile?.bank_name && me?.profile?.bank_account_number);
   const bankChangeAvailableAt = me?.profile?.bank_details_change_requested_at ? new Date(new Date(me.profile.bank_details_change_requested_at).getTime() + 7 * 864e5) : null;
   const canEditBank = !hasBankDetails || Boolean(bankChangeAvailableAt && bankChangeAvailableAt.getTime() <= Date.now());
@@ -185,9 +186,14 @@ function SettingsPage() {
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <h2 className="font-medium">Welcome bonus selfie</h2>
+          <h2 className="font-medium">Welcome bonus</h2>
         </div>
-        <p className="mb-4 text-sm text-muted-foreground">
+        {welcomeBonusClaimedAt ? (
+          <p className="text-sm text-muted-foreground">
+            Claimed R10 welcome bonus on {new Date(welcomeBonusClaimedAt).toLocaleDateString("en-ZA", { dateStyle: "long" })}.
+          </p>
+        ) : (<>
+          <p className="mb-4 text-sm text-muted-foreground">
           Take a clear, front-facing selfie. An administrator must approve it before your R10 welcome bonus is credited to your growing account.
           {me?.profile?.kyc_status ? ` Current status: ${me.profile.kyc_status}.` : ""}
         </p>
@@ -203,7 +209,8 @@ function SettingsPage() {
           <Button type="button" onClick={submitKyc} disabled={isSubmittingKyc} className="gradient-brand text-white">
             {isSubmittingKyc ? "Submitting…" : me?.profile?.kyc_status === "pending" ? "Resubmit selfie for review" : "Submit selfie for review"}
           </Button>
-        </div>
+          </div>
+        </>)}
       </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
