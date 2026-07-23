@@ -14,7 +14,7 @@ import { Capacitor } from "@capacitor/core";
 const authRedirectUrl = (mode: "signin" | "reset" = "signin") =>
   Capacitor.isNativePlatform()
     ? `com.sparkleinsure.app://auth/confirm?mode=${mode}`
-    : `${window.location.origin}/auth?mode=${mode}`;
+    : `${window.location.origin}/auth/callback?next=${mode === "reset" ? "reset" : "dashboard"}`;
 
 export const Route = createFileRoute("/auth")({
   ssr: false,

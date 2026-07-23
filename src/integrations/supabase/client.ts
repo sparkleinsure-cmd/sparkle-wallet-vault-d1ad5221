@@ -54,6 +54,10 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+      // Email and OAuth redirects are completed explicitly by the callback
+      // route. This avoids two concurrent PKCE exchanges on slower mobile
+      // browsers, which can leave confirmation and recovery links spinning.
+      detectSessionInUrl: false,
     }
   });
 }
