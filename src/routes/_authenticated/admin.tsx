@@ -508,20 +508,8 @@ function AdminPage() {
   );
 }
 
-function parseWithdrawalDescription(desc: string | null | undefined) {
-  if (!desc) return { bank: "n/a", account: "n/a" };
-  const bank = /Bank:\s*([^·]+?)(?:\s*·|$)/i.exec(desc)?.[1]?.trim() ?? "n/a";
-  const account = /Acc:\s*([^·]+?)(?:\s*·|$)/i.exec(desc)?.[1]?.trim() ?? "n/a";
-  return { bank, account };
-}
-
-function normalizeBankDetail(value: string | null | undefined) {
-  return (value ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
-}
-
 function downloadWithdrawalPdf(w: any) {
   const p = w.profiles ?? {};
-  const { bank, account } = parseWithdrawalDescription(w.description);
   const doc = new jsPDF();
   doc.setFontSize(18);
   doc.setTextColor(30, 90, 110);
@@ -539,8 +527,8 @@ function downloadWithdrawalPdf(w: any) {
     ["Phone", p.phone ?? ""],
     ["", ""],
     ["Amount", `${w.currency} ${Number(w.amount).toFixed(2)}`],
-    ["Bank name", bank],
-    ["Account number", account],
+    ["Bank name", p.bank_name ?? "Not set"],
+    ["Account number", p.bank_account_number ?? "Not set"],
   ];
   let y = 34;
   for (const [k, v] of lines) {
@@ -567,10 +555,6 @@ function WithdrawalRow({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const p = withdrawal.profiles;
-  const { bank, account } = parseWithdrawalDescription(withdrawal.description);
-  const bankMatches = normalizeBankDetail(bank) === normalizeBankDetail(p?.bank_name);
-  const accountMatches = normalizeBankDetail(account) === normalizeBankDetail(p?.bank_account_number);
-  const payoutDetailsMatch = bankMatches && accountMatches;
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -586,12 +570,12 @@ function WithdrawalRow({
             {formatMoney(Number(withdrawal.amount), withdrawal.currency as Currency)}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            Bank: <span className="font-medium text-foreground">{bank}</span> · Acc:{" "}
-            <span className="font-mono">{account}</span>
+            Bank: <span className="font-medium text-foreground">{p?.bank_name ?? "Not set"}</span> · Acc:{" "}
+            <span className="font-mono">{p?.bank_account_number ?? "Not set"}</span>
           </div>
-          <div className={`mt-2 rounded-lg border px-2 py-1.5 text-xs ${payoutDetailsMatch ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"}`}>
-            <strong>{payoutDetailsMatch ? "Matches registered payout details" : "Does not match registered payout details"}</strong>
-            <span className="mt-0.5 block">Registered: {p?.bank_name ?? "not set"} · {p?.bank_account_number ?? "not set"}</span>
+          <div className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-xs text-emerald-800 dark:text-emerald-300">
+            <strong>Saved payout account</strong>
+            <span className="mt-0.5 block">Funds will be paid to the registered account shown above.</span>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => downloadWithdrawalPdf(withdrawal)}>
