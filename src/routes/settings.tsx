@@ -208,6 +208,24 @@ function SettingsPage() {
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-emerald-600" />
+          <h2 className="font-medium">WhatsApp support</h2>
+        </div>
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-emerald-600 p-2 text-white"><MessageCircle className="h-5 w-5" /></div>
+            <div><p className="font-medium">Hello, how can we help you today?</p><p className="mt-1 text-sm text-muted-foreground">Chat with the Sparkle Insure support team on WhatsApp.</p></div>
+          </div>
+          <Button asChild className="mt-4 w-full bg-emerald-600 text-white hover:bg-emerald-700">
+            <a href="https://wa.me/27688551549?text=How%20does%20Sparkle%20Insure%20work%3F" target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="mr-2 h-4 w-4" /> Start WhatsApp chat
+            </a>
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
           <Trash2 className="h-4 w-4 text-red-500" />
           <h2 className="font-medium">Delete account</h2>
         </div>
@@ -230,24 +248,6 @@ function SettingsPage() {
           >
             {isDeleting ? "Processing..." : "Delete account"}
           </button>
-        </div>
-      </section>
-
-      <section className="rounded-lg border bg-background p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-emerald-600" />
-          <h2 className="font-medium">WhatsApp support</h2>
-        </div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-emerald-600 p-2 text-white"><MessageCircle className="h-5 w-5" /></div>
-            <div><p className="font-medium">Hello, how can we help you today?</p><p className="mt-1 text-sm text-muted-foreground">Chat with the Sparkle Insure support team on WhatsApp.</p></div>
-          </div>
-          <Button asChild className="mt-4 w-full bg-emerald-600 text-white hover:bg-emerald-700">
-            <a href="https://wa.me/27688551549?text=How%20does%20Sparkle%20Insure%20work%3F" target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="mr-2 h-4 w-4" /> Start WhatsApp chat
-            </a>
-          </Button>
         </div>
       </section>
     </div>
