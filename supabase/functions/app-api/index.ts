@@ -88,9 +88,11 @@ serve(async (req) => {
       case "getInsuranceDashboard": {
         const applications = await supabase.from("insurance_applications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10);
         const claims = await supabase.from("insurance_claims").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+        const eligibility = await supabase.rpc("insurance_eligibility", { p_user_id: userId });
         if (applications.error) throw new Error(applications.error.message);
         if (claims.error) throw new Error(claims.error.message);
-        return json({ data: { application: applications.data?.[0] ?? null, applications: applications.data ?? [], claims: claims.data ?? [] } });
+        if (eligibility.error) throw new Error(eligibility.error.message);
+        return json({ data: { application: applications.data?.[0] ?? null, applications: applications.data ?? [], claims: claims.data ?? [], eligibility: eligibility.data } });
       }
 
       case "submitInsuranceApplication": {
