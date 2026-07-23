@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAccountHealth, getMe, setPrimaryCurrency } from "@/lib/app-api";
+import { getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionsTable } from "@/components/TransactionsTable";
@@ -33,6 +33,11 @@ function DashboardPage() {
     queryFn: () => fetchHealth(),
     enabled: !!data?.profile,
   });
+  const { data: insurance } = useQuery({
+    queryKey: ["insurance-dashboard"],
+    queryFn: getInsuranceDashboard,
+    enabled: !!data?.profile,
+  });
 
   const [depOpen, setDepOpen] = useState(false);
   const [wOpen, setWOpen] = useState(false);
@@ -56,6 +61,15 @@ function DashboardPage() {
     .filter((t) => t.currency === currency && new Date(t.maturity_date).getTime() > Date.now())
     .reduce((s, t) => s + Number(t.remaining), 0);
   const withdrawable = Math.max(0, balance - lockedInCurrency);
+  const hasInsuranceApplication = Boolean(insurance?.application);
+  const insuranceStatus = insurance?.application?.status as "pending" | "approved" | "declined" | undefined;
+  const insuranceDescription = insuranceStatus === "pending"
+    ? "Your application is under review. Track its progress from your insurance dashboard."
+    : insuranceStatus === "approved"
+      ? "Manage your insurance credit facility, repayments and claims from your dashboard."
+      : insuranceStatus === "declined"
+        ? "View your application outcome and manage your next insurance application."
+        : "Apply for appliance cover or open your insurance credit dashboard.";
 
   return (
     <div className="min-h-screen pb-16">
@@ -115,9 +129,9 @@ function DashboardPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-3">
               <div className="rounded-xl bg-primary/10 p-3"><ShieldCheck className="h-6 w-6 text-primary" /></div>
-              <div><h2 className="font-display text-lg font-bold">Insure your home appliances</h2><p className="text-sm text-muted-foreground">Apply for appliance cover or open your insurance credit dashboard.</p></div>
+              <div><h2 className="font-display text-lg font-bold">{hasInsuranceApplication ? "Manage your Insurance" : "Insure your home appliances"}</h2><p className="text-sm text-muted-foreground">{insuranceDescription}</p></div>
             </div>
-            <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/insurance">Open insurance</Link></Button>
+            <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/insurance">{hasInsuranceApplication ? "Go to dashboard" : "Open insurance"}</Link></Button>
           </div>
         </div>
 
