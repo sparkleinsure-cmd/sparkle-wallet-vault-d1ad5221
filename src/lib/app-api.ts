@@ -32,6 +32,9 @@ export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfie
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
 export const sendOtps = () => call<{ ok: true; delivered: boolean }>("sendOtps");
 export const verifyOtps = ({ data }: Input<{ emailCode: string }>) => call<{ ok: true }>("verifyOtps", data);
+export const getInsuranceDashboard = () => call<any>("getInsuranceDashboard");
+export const submitInsuranceApplication = ({ data }: Input<{ items: string[]; bankStatementPaths: string[]; payslipPath: string; idCopyPath: string }>) => call<any>("submitInsuranceApplication", data);
+export const submitInsuranceClaim = ({ data }: Input<{ item: string; amount: number; quotationPath: string }>) => call<any>("submitInsuranceClaim", data);
 
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string }>) => call<any>("adminCreditBonus", data);
@@ -47,3 +50,8 @@ export const adminListPendingWithdrawals = () => call<any>("adminListPendingWith
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
 export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");
+export const adminListInsuranceApplications = () => call<any>("adminListInsuranceApplications");
+export const adminListInsuranceClaims = () => call<any>("adminListInsuranceClaims");
+export const adminGetInsuranceDocumentUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetInsuranceDocumentUrl", data);
+export const adminReviewInsuranceApplication = ({ data }: Input<{ applicationId: string; status: "approved" | "declined"; creditAmount?: number; note?: string }>) => call<{ ok: true }>("adminReviewInsuranceApplication", data);
+export const adminReviewInsuranceClaim = ({ data }: Input<{ claimId: string; status: "approved" | "declined"; approvedAmount?: number; note?: string }>) => call<{ ok: true }>("adminReviewInsuranceClaim", data);

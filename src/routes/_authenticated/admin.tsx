@@ -16,6 +16,11 @@ import {
   adminSetKycStatus,
   adminGetKycProofUrl,
   adminGetUserCount,
+  adminListInsuranceApplications,
+  adminListInsuranceClaims,
+  adminGetInsuranceDocumentUrl,
+  adminReviewInsuranceApplication,
+  adminReviewInsuranceClaim,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -68,6 +73,8 @@ function AdminPage() {
     refetchInterval: 30_000,
   });
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin") });
+  const { data: insuranceApplications, refetch: refetchInsuranceApplications } = useQuery({ queryKey: ["admin-insurance-applications"], queryFn: adminListInsuranceApplications, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const { data: insuranceClaims, refetch: refetchInsuranceClaims } = useQuery({ queryKey: ["admin-insurance-claims"], queryFn: adminListInsuranceClaims, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
     queryFn: () => listWithdrawals(),
@@ -148,6 +155,24 @@ function AdminPage() {
             <div className="text-sm text-muted-foreground">Total registered users</div>
             <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
           </div>
+        </Card>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-1 flex items-center font-display text-lg font-semibold"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Appliance insurance applications
+            {!!insuranceApplications?.applications?.length && <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">{insuranceApplications.applications.length}</span>}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">Review supporting documents and allocate an approved credit facility.</p>
+          {!insuranceApplications?.applications?.length ? <p className="text-sm text-muted-foreground">No insurance applications are waiting for review.</p> :
+            <div className="space-y-3">{insuranceApplications.applications.map((application:any)=><InsuranceApplicationRow key={application.id} application={application} openDocument={async(path)=>{try{const {url}=await adminGetInsuranceDocumentUrl({data:{path}});window.open(url,"_blank","noopener,noreferrer");}catch(error:any){toast.error(error.message)}}} onDone={()=>refetchInsuranceApplications()}/>)}</div>}
+        </Card>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-1 flex items-center font-display text-lg font-semibold"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Insurance claims
+            {!!insuranceClaims?.claims?.length && <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">{insuranceClaims.claims.length}</span>}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">Approve a claim to credit the amount into the user’s withdrawable ZAR wallet balance.</p>
+          {!insuranceClaims?.claims?.length ? <p className="text-sm text-muted-foreground">No insurance claims are waiting for review.</p> :
+            <div className="space-y-3">{insuranceClaims.claims.map((claim:any)=><InsuranceClaimRow key={claim.id} claim={claim} openDocument={async(path)=>{try{const {url}=await adminGetInsuranceDocumentUrl({data:{path}});window.open(url,"_blank","noopener,noreferrer");}catch(error:any){toast.error(error.message)}}} onDone={()=>refetchInsuranceClaims()}/>)}</div>}
         </Card>
 
         <Card className="glass-card rounded-2xl p-6">
@@ -599,6 +624,18 @@ function WithdrawalRow({
       </div>
     </div>
   );
+}
+
+function InsuranceApplicationRow({ application, openDocument, onDone }: { application:any; openDocument:(path:string)=>void; onDone:()=>void }) {
+  const [credit,setCredit]=useState(""); const [note,setNote]=useState(""); const [busy,setBusy]=useState(false); const profile=application.profiles??{};
+  const review=async(status:"approved"|"declined")=>{const amount=Number(credit);if(status==="approved"&&(!Number.isFinite(amount)||amount<=0))return toast.error("Enter a valid credit facility amount.");setBusy(true);try{await adminReviewInsuranceApplication({data:{applicationId:application.id,status,creditAmount:status==="approved"?amount:undefined,note:note.trim()||undefined}});toast.success(status==="approved"?"Insurance application approved.":"Insurance application declined.");onDone();}catch(error:any){toast.error(error.message)}finally{setBusy(false)}};
+  return <div className="rounded-xl border bg-background/50 p-4"><div className="font-semibold">{profile.first_name} {profile.surname} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{profile.account_id}</span></div><div className="text-xs text-muted-foreground">{profile.email} · {new Date(application.created_at).toLocaleString()}</div><div className="mt-2 text-sm"><strong>Items:</strong> {application.selected_items.join(", ")}</div><div className="mt-3 flex flex-wrap gap-2">{application.bank_statement_paths.map((path:string,index:number)=><Button key={path} size="sm" variant="outline" onClick={()=>openDocument(path)}><FileDown className="mr-2 h-4 w-4"/>Bank statement {index+1}</Button>)}<Button size="sm" variant="outline" onClick={()=>openDocument(application.payslip_path)}><FileDown className="mr-2 h-4 w-4"/>Payslip</Button><Button size="sm" variant="outline" onClick={()=>openDocument(application.id_copy_path)}><FileDown className="mr-2 h-4 w-4"/>ID copy</Button></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Input type="number" min="1" step="0.01" placeholder="Credit facility amount (ZAR)" value={credit} onChange={event=>setCredit(event.target.value)}/><Input placeholder="Optional review note" value={note} onChange={event=>setNote(event.target.value)}/></div><div className="mt-3 flex gap-2"><Button disabled={busy} className="gradient-brand text-white" onClick={()=>review("approved")}><CheckCircle2 className="mr-2 h-4 w-4"/>Approve & allocate credit</Button><Button disabled={busy} variant="destructive" onClick={()=>review("declined")}><XCircle className="mr-2 h-4 w-4"/>Decline</Button></div></div>;
+}
+
+function InsuranceClaimRow({ claim, openDocument, onDone }: { claim:any; openDocument:(path:string)=>void; onDone:()=>void }) {
+  const [amount,setAmount]=useState(String(claim.requested_amount)); const [note,setNote]=useState(""); const [busy,setBusy]=useState(false); const profile=claim.profiles??{};
+  const review=async(status:"approved"|"declined")=>{const value=Number(amount);if(status==="approved"&&(!Number.isFinite(value)||value<=0||value>Number(claim.requested_amount)))return toast.error("Approved amount must be positive and cannot exceed the requested amount.");setBusy(true);try{await adminReviewInsuranceClaim({data:{claimId:claim.id,status,approvedAmount:status==="approved"?value:undefined,note:note.trim()||undefined}});toast.success(status==="approved"?"Claim approved and wallet credited.":"Claim declined.");onDone();}catch(error:any){toast.error(error.message)}finally{setBusy(false)}};
+  return <div className="rounded-xl border bg-background/50 p-4"><div className="font-semibold">{profile.first_name} {profile.surname} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{profile.account_id}</span></div><div className="text-xs text-muted-foreground">{profile.email} · {new Date(claim.created_at).toLocaleString()}</div><div className="mt-2 text-sm"><strong>{claim.item}</strong> · Requested {formatMoney(Number(claim.requested_amount),"ZAR")}</div><Button className="mt-3" size="sm" variant="outline" onClick={()=>openDocument(claim.quotation_path)}><FileDown className="mr-2 h-4 w-4"/>Open quotation</Button><div className="mt-3 grid gap-2 sm:grid-cols-2"><Input type="number" min="1" max={claim.requested_amount} step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="Approved payout amount"/><Input value={note} onChange={event=>setNote(event.target.value)} placeholder="Optional processing note"/></div><div className="mt-3 flex gap-2"><Button disabled={busy} className="gradient-brand text-white" onClick={()=>review("approved")}><CheckCircle2 className="mr-2 h-4 w-4"/>Approve & credit wallet</Button><Button disabled={busy} variant="destructive" onClick={()=>review("declined")}><XCircle className="mr-2 h-4 w-4"/>Decline</Button></div></div>;
 }
 
 function PendingKycRow({

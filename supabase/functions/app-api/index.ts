@@ -85,6 +85,33 @@ serve(async (req) => {
         return json({ data: { profile: profileRes.data, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
       }
 
+      case "getInsuranceDashboard": {
+        const applications = await supabase.from("insurance_applications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10);
+        const claims = await supabase.from("insurance_claims").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+        if (applications.error) throw new Error(applications.error.message);
+        if (claims.error) throw new Error(claims.error.message);
+        return json({ data: { application: applications.data?.[0] ?? null, applications: applications.data ?? [], claims: claims.data ?? [] } });
+      }
+
+      case "submitInsuranceApplication": {
+        const items = Array.isArray(data.items) ? data.items.map((x: unknown) => requireString(x, "item", 2, 80)) : [];
+        const bankPaths = Array.isArray(data.bankStatementPaths) ? data.bankStatementPaths.map((x: unknown) => requireString(x, "bank statement", 3, 500)) : [];
+        const payslipPath = requireString(data.payslipPath, "payslip", 3, 500);
+        const idCopyPath = requireString(data.idCopyPath, "ID copy", 3, 500);
+        const result = await supabase.rpc("submit_insurance_application", { p_items: items, p_bank_paths: bankPaths, p_payslip_path: payslipPath, p_id_copy_path: idCopyPath });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true, applicationId: result.data } });
+      }
+
+      case "submitInsuranceClaim": {
+        const item = requireString(data.item, "item", 2, 80);
+        const amount = requireAmount(data.amount, 1_000_000);
+        const quotationPath = requireString(data.quotationPath, "quotation", 3, 500);
+        const result = await supabase.rpc("submit_insurance_claim", { p_item: item, p_amount: amount, p_quotation_path: quotationPath });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true, claimId: result.data } });
+      }
+
       case "getAccountHealth": {
         const since = new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
         const [snapshots, rewards] = await Promise.all([
@@ -276,6 +303,58 @@ serve(async (req) => {
         const result = await admin.from("profiles").select("id", { count: "exact", head: true });
         if (result.error) throw new Error(result.error.message);
         return json({ data: { count: result.count ?? 0 } });
+      }
+
+      case "adminListInsuranceApplications": {
+        await assertAdmin(supabase, userId);
+        const rows = await admin.from("insurance_applications").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(100);
+        if (rows.error) throw new Error(rows.error.message);
+        const ids = Array.from(new Set((rows.data ?? []).map((x: any) => x.user_id)));
+        const profiles = ids.length ? await admin.from("profiles").select("id,account_id,first_name,surname,email,phone").in("id", ids) : { data: [] };
+        const byId = Object.fromEntries((profiles.data ?? []).map((p: any) => [p.id, p]));
+        return json({ data: { applications: (rows.data ?? []).map((x: any) => ({ ...x, profiles: byId[x.user_id] ?? null })) } });
+      }
+
+      case "adminListInsuranceClaims": {
+        await assertAdmin(supabase, userId);
+        const rows = await admin.from("insurance_claims").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(100);
+        if (rows.error) throw new Error(rows.error.message);
+        const ids = Array.from(new Set((rows.data ?? []).map((x: any) => x.user_id)));
+        const profiles = ids.length ? await admin.from("profiles").select("id,account_id,first_name,surname,email,phone").in("id", ids) : { data: [] };
+        const byId = Object.fromEntries((profiles.data ?? []).map((p: any) => [p.id, p]));
+        return json({ data: { claims: (rows.data ?? []).map((x: any) => ({ ...x, profiles: byId[x.user_id] ?? null })) } });
+      }
+
+      case "adminGetInsuranceDocumentUrl": {
+        await assertAdmin(supabase, userId);
+        const path = requireString(data.path, "document path", 3, 500);
+        const signed = await admin.storage.from("insurance").createSignedUrl(path, 300);
+        if (signed.error) throw new Error(signed.error.message);
+        return json({ data: { url: signed.data.signedUrl } });
+      }
+
+      case "adminReviewInsuranceApplication": {
+        await assertAdmin(supabase, userId);
+        const applicationId = requireString(data.applicationId, "application", 36, 36);
+        const status = data.status === "approved" ? "approved" : data.status === "declined" ? "declined" : null;
+        if (!status) throw new Error("Invalid status");
+        const credit = status === "approved" ? requireAmount(data.creditAmount, 1_000_000) : 0;
+        const note = typeof data.note === "string" ? data.note.trim().slice(0, 500) : null;
+        const result = await supabase.rpc("admin_review_insurance_application", { p_application_id: applicationId, p_status: status, p_credit: credit, p_note: note });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
+      }
+
+      case "adminReviewInsuranceClaim": {
+        await assertAdmin(supabase, userId);
+        const claimId = requireString(data.claimId, "claim", 36, 36);
+        const status = data.status === "approved" ? "approved" : data.status === "declined" ? "declined" : null;
+        if (!status) throw new Error("Invalid status");
+        const approved = status === "approved" ? requireAmount(data.approvedAmount, 1_000_000) : 0;
+        const note = typeof data.note === "string" ? data.note.trim().slice(0, 500) : null;
+        const result = await supabase.rpc("admin_review_insurance_claim", { p_claim_id: claimId, p_status: status, p_approved_amount: approved, p_note: note });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
       }
 
       case "sendOtps": {

@@ -11,7 +11,7 @@ import { AccountHealthCard } from "@/components/AccountHealthCard";
 import { Button } from "@/components/ui/button";
 import { type Currency } from "@/lib/currency";
 import { useState } from "react";
-import { Gift, Loader2 } from "lucide-react";
+import { Gift, Loader2, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
@@ -110,6 +110,16 @@ function DashboardPage() {
             <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/settings" hash="verification">Complete setup</Link></Button>
           </div>
         )}
+
+        <div className="glass-card rounded-2xl border border-primary/20 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <div className="rounded-xl bg-primary/10 p-3"><ShieldCheck className="h-6 w-6 text-primary" /></div>
+              <div><h2 className="font-display text-lg font-bold">Insure your home appliances</h2><p className="text-sm text-muted-foreground">Apply for appliance cover or open your insurance credit dashboard.</p></div>
+            </div>
+            <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/insurance">Open insurance</Link></Button>
+          </div>
+        </div>
 
         <TransactionsTable transactions={data.transactions as any} />
       </main>
