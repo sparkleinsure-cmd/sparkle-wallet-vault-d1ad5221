@@ -57,6 +57,14 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function recordAdminFileView(admin: any, adminId: string, bucket: string, path: string) {
+  const result = await admin.from("review_file_cleanup_queue").upsert(
+    { bucket_id: bucket, object_path: path, viewed_at: new Date().toISOString(), viewed_by: adminId, last_error: null },
+    { onConflict: "bucket_id,object_path" },
+  );
+  if (result.error) throw new Error(result.error.message);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -356,6 +364,7 @@ serve(async (req) => {
         const path = requireString(data.path, "document path", 3, 500);
         const signed = await admin.storage.from("insurance").createSignedUrl(path, 300);
         if (signed.error) throw new Error(signed.error.message);
+        await recordAdminFileView(admin, userId, "insurance", path);
         return json({ data: { url: signed.data.signedUrl } });
       }
 
@@ -470,6 +479,7 @@ serve(async (req) => {
         const path = requireString(data.path, "proof path", 1, 500);
         const signed = await supabase.storage.from("deposits").createSignedUrl(path, 300);
         if (signed.error) throw new Error(signed.error.message);
+        await recordAdminFileView(admin, userId, "deposits", path);
         return json({ data: { url: signed.data.signedUrl } });
       }
 
@@ -481,6 +491,7 @@ serve(async (req) => {
         // caller above, rather than making these sensitive files readable.
         const signed = await admin.storage.from("kyc").createSignedUrl(path, 300);
         if (signed.error) throw new Error(signed.error.message);
+        await recordAdminFileView(admin, userId, "kyc", path);
         return json({ data: { url: signed.data.signedUrl } });
       }
 

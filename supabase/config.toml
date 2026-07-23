@@ -25,3 +25,6 @@ verify_enabled = true
 
 [storage.vector]
 enabled = false
+
+[functions.storage-cleanup]
+verify_jwt = false
