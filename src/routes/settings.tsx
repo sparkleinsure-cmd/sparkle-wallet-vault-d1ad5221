@@ -250,6 +250,10 @@ function SettingsPage() {
           Take a clear, front-facing selfie. An administrator must approve it before your R10 welcome bonus is credited to your growing account.
           {me?.profile?.kyc_status ? ` Current status: ${me.profile.kyc_status}.` : ""}
         </p>
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <span className="font-medium">Helping someone register?</span>{" "}
+          Please use the account owner&apos;s own phone and browser. Welcome bonuses are limited per device, so using your phone may make their account appear to have already claimed.
+        </div>
         <div className="space-y-3">
           {selfiePreview && <img src={selfiePreview} alt="Selfie preview" className="mx-auto aspect-square w-full max-w-xs rounded-xl object-cover" />}
           <div className="grid gap-2 sm:grid-cols-2">
