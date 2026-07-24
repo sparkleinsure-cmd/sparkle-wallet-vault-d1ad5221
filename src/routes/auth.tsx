@@ -297,7 +297,14 @@ function SignUpForm() {
         });
         if (error || !data.user) {
           setLoading(false);
-          return toast.error(error?.message ?? "Signup failed");
+          const message = error?.message ?? "Signup failed";
+          if (message.toLowerCase().includes("rate limit")) {
+            return toast.error(
+              "The signup email service has reached its hourly limit. Please try again later or use Continue with Google.",
+              { duration: 10_000 },
+            );
+          }
+          return toast.error(message);
         }
 
         // With email confirmation enabled Supabase intentionally does not
