@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { formatMoney } from "@/lib/currency";
 
 const APPLIANCES = ["Refrigerator", "Stove / oven", "Air fryer", "Television", "Radio", "Soundbar", "Microwave", "Washing machine", "Dishwasher", "Kettle", "Toaster", "Vacuum cleaner"];
+const isPdf = (file: File) => file.type === "application/pdf" && file.name.toLowerCase().endsWith(".pdf");
+const isImageOrPdf = (file: File) => isPdf(file) || file.type.startsWith("image/");
 
 export const Route = createFileRoute("/_authenticated/insurance")({ component: InsurancePage });
 
@@ -53,6 +55,9 @@ function ApplicationForm({ userId, previous, eligibility, onDone }: { userId: st
   const submit = async () => {
     if (!items.length) return toast.error("Select at least one appliance.");
     if (!bankFiles.length || !payslip || !idCopy) return toast.error("Upload your bank statements, latest payslip and ID copy.");
+    if (bankFiles.some(file => !isPdf(file))) return toast.error("All bank statements must be PDF documents.");
+    if (!isPdf(payslip)) return toast.error("Your latest payslip must be a PDF document.");
+    if (!isImageOrPdf(idCopy)) return toast.error("Your ID copy must be an image or PDF document.");
     setBusy(true);
     try {
       const bankStatementPaths: string[] = [];
@@ -76,8 +81,8 @@ function ApplicationForm({ userId, previous, eligibility, onDone }: { userId: st
     {previous?.status === "declined" && <p className="mt-2 rounded-lg bg-rose-500/10 p-3 text-sm text-rose-700">Your previous application was declined.{previous.admin_note ? ` ${previous.admin_note}` : ""} You may submit a new application.</p>}
     <div className="mt-5 space-y-5">
       <div><Label>Items to insure</Label><div className="mt-2 grid gap-2 sm:grid-cols-2 md:grid-cols-3">{APPLIANCES.map(item => <label key={item} className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={items.includes(item)} onChange={event => setItems(event.target.checked ? [...items, item] : items.filter(value => value !== item))} />{item}</label>)}</div></div>
-      <div><Label htmlFor="bank-statements">Latest 3 months bank statements (up to 3 files)</Label><Input id="bank-statements" type="file" multiple accept="image/*,application/pdf" onChange={event => setBankFiles(Array.from(event.target.files ?? []).slice(0, 3))} /></div>
-      <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="payslip">Latest payslip</Label><Input id="payslip" type="file" accept="image/*,application/pdf" onChange={event => setPayslip(event.target.files?.[0] ?? null)} /></div><div><Label htmlFor="id-copy">ID copy</Label><Input id="id-copy" type="file" accept="image/*,application/pdf" onChange={event => setIdCopy(event.target.files?.[0] ?? null)} /></div></div>
+      <div><Label htmlFor="bank-statements">Latest 3 months bank statements (PDF only, up to 3 files)</Label><Input id="bank-statements" type="file" multiple accept=".pdf,application/pdf" onChange={event => { const files=Array.from(event.target.files??[]).slice(0,3); if(files.some(file=>!isPdf(file))){event.target.value="";setBankFiles([]);toast.error("Bank statements must be PDF documents.");return;} setBankFiles(files); }} /></div>
+      <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="payslip">Latest payslip (PDF only)</Label><Input id="payslip" type="file" accept=".pdf,application/pdf" onChange={event => { const file=event.target.files?.[0]??null; if(file&&!isPdf(file)){event.target.value="";setPayslip(null);toast.error("Latest payslip must be a PDF document.");return;} setPayslip(file); }} /></div><div><Label htmlFor="id-copy">ID copy (image or PDF)</Label><Input id="id-copy" type="file" accept="image/*,.pdf,application/pdf" onChange={event => { const file=event.target.files?.[0]??null; if(file&&!isImageOrPdf(file)){event.target.value="";setIdCopy(null);toast.error("ID copy must be an image or PDF document.");return;} setIdCopy(file); }} /></div></div>
       <Button disabled={busy || !eligibility?.eligible} className="w-full gradient-brand text-white" onClick={submit}>{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{eligibility?.eligible ? "Submit application" : "Not yet eligible to apply"}</Button>
     </div>
   </Card>;
