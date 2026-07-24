@@ -120,14 +120,20 @@ serve(async (req) => {
           if (history.error) throw new Error(history.error.message);
           const currentSignals = new Set((signals.data ?? []).map((signal: any) => `${signal.signal_type}:${signal.signal_hash}`));
           const matchingHistory = (history.data ?? []).filter((entry: any) => currentSignals.has(`${entry.signal_type}:${entry.signal_hash}`));
+          // Network addresses and broad browser/system fingerprints can be
+          // shared by unrelated people. They are useful for risk analysis,
+          // but must never make a new member appear to have claimed a bonus.
+          const strongMatchingHistory = matchingHistory.filter((entry: any) =>
+            ["email", "phone", "installation"].includes(entry.signal_type)
+          );
           if (!welcomeBonusClaimedAt) {
-            welcomeBonusClaimedAt = matchingHistory
+            welcomeBonusClaimedAt = strongMatchingHistory
               .map((entry: any) => entry.bonus_claimed_at)
               .filter(Boolean)
               .sort()[0] ?? null;
           }
-          welcomeBonusEligible = !matchingHistory.some((entry: any) =>
-            entry.first_user_id !== userId && ["email", "phone", "installation"].includes(entry.signal_type)
+          welcomeBonusEligible = !strongMatchingHistory.some((entry: any) =>
+            entry.first_user_id !== userId
           );
         }
         const profile = profileRes.data ? {
