@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { biometricIsReady, biometricSignIn } from "@/lib/biometric";
+import { getSignupDeviceContext } from "@/lib/device";
 import { Capacitor } from "@capacitor/core";
 
 const authRedirectUrl = (mode: "signin" | "reset" = "signin") =>
@@ -37,23 +38,6 @@ const signupSchema = z.object({
   phone: z.string().trim().refine((value) => /^\+?[0-9 ()-]{8,24}$/.test(value) && value.replace(/\D/g, "").length >= 8 && value.replace(/\D/g, "").length <= 15, "Enter a valid phone number with 8 to 15 digits"),
   password: z.string().min(8).max(72),
 });
-
-function getSignupDeviceContext() {
-  const storageKey = "sparkle-installation-id";
-  let installationId = localStorage.getItem(storageKey);
-  if (!installationId) {
-    installationId = crypto.randomUUID();
-    localStorage.setItem(storageKey, installationId);
-  }
-  const systemFingerprint = [
-    Capacitor.getPlatform(),
-    navigator.userAgent,
-    navigator.language,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    `${screen.width}x${screen.height}x${screen.colorDepth}`,
-  ].join("|");
-  return { installationId, systemFingerprint };
-}
 
 function AuthPage() {
   const { mode } = Route.useSearch();

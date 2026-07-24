@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getSignupDeviceContext } from "@/lib/device";
 
 type Input<T> = { data: T };
 
@@ -18,7 +19,9 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   return result.data?.data as T;
 }
 
-export const getMe = () => call<any>("getMe");
+export const getMe = () => call<any>("getMe", {
+  installationId: typeof window === "undefined" ? null : getSignupDeviceContext().installationId,
+});
 export const getAccountHealth = () => call<any>("getAccountHealth");
 export const getStatementTransactions = ({ data }: Input<{ days: number }>) => call<any[]>("getStatementTransactions", data);
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
@@ -50,6 +53,8 @@ export const adminListPendingWithdrawals = () => call<any>("adminListPendingWith
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
 export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");
+export const adminRegisterBonusTestDevice = ({ data }: Input<{ installationId: string; label: string }>) =>
+  call<{ ok: true }>("adminRegisterBonusTestDevice", data);
 export const adminListInsuranceApplications = () => call<any>("adminListInsuranceApplications");
 export const adminListInsuranceClaims = () => call<any>("adminListInsuranceClaims");
 export const adminGetInsuranceDocumentUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetInsuranceDocumentUrl", data);

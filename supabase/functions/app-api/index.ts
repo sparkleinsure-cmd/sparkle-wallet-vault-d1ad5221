@@ -88,6 +88,10 @@ serve(async (req) => {
 
     switch (action) {
       case "getMe": {
+        const installationId = typeof data.installationId === "string" && /^[0-9a-f-]{36}$/i.test(data.installationId)
+          ? data.installationId
+          : null;
+        const currentInstallationHash = installationId ? await sha256(installationId) : null;
         const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
         const clientIp = req.headers.get("cf-connecting-ip") ?? forwardedFor;
         if (clientIp) {
@@ -112,6 +116,15 @@ serve(async (req) => {
         const signals = await admin.from("signup_risk_signals").select("signal_type,signal_hash").eq("user_id", userId);
         if (signals.error) throw new Error(signals.error.message);
         const hashes = [...new Set((signals.data ?? []).map((signal: any) => signal.signal_hash))];
+        const exemptionCandidates = [...new Set([
+          ...(signals.data ?? []).filter((signal: any) => signal.signal_type === "installation").map((signal: any) => signal.signal_hash),
+          ...(currentInstallationHash ? [currentInstallationHash] : []),
+        ])];
+        const exemptions = exemptionCandidates.length
+          ? await admin.from("bonus_test_installations").select("signal_hash").in("signal_hash", exemptionCandidates)
+          : { data: [], error: null };
+        if (exemptions.error) throw new Error(exemptions.error.message);
+        const exemptInstallationHashes = new Set((exemptions.data ?? []).map((entry: any) => entry.signal_hash));
         if (hashes.length) {
           const history = await admin
             .from("signup_identity_history")
@@ -124,7 +137,8 @@ serve(async (req) => {
           // shared by unrelated people. They are useful for risk analysis,
           // but must never make a new member appear to have claimed a bonus.
           const strongMatchingHistory = matchingHistory.filter((entry: any) =>
-            ["email", "phone", "installation"].includes(entry.signal_type)
+            ["email", "phone"].includes(entry.signal_type)
+            || (entry.signal_type === "installation" && !exemptInstallationHashes.has(entry.signal_hash))
           );
           if (!welcomeBonusClaimedAt) {
             welcomeBonusClaimedAt = strongMatchingHistory
@@ -140,6 +154,7 @@ serve(async (req) => {
           ...profileRes.data,
           welcome_bonus_claimed_at: welcomeBonusClaimedAt,
           welcome_bonus_eligible: welcomeBonusEligible,
+          welcome_bonus_test_device: Boolean(currentInstallationHash && exemptInstallationHashes.has(currentInstallationHash)),
         } : null;
         return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
       }
@@ -371,6 +386,20 @@ serve(async (req) => {
         const result = await admin.from("profiles").select("id", { count: "exact", head: true });
         if (result.error) throw new Error(result.error.message);
         return json({ data: { count: result.count ?? 0 } });
+      }
+
+      case "adminRegisterBonusTestDevice": {
+        await assertAdmin(supabase, userId);
+        const installationId = requireString(data.installationId, "installation", 36, 36);
+        if (!/^[0-9a-f-]{36}$/i.test(installationId)) throw new Error("Invalid installation");
+        const label = requireString(data.label, "device label", 3, 80);
+        const result = await admin.from("bonus_test_installations").upsert({
+          signal_hash: await sha256(installationId),
+          label,
+          registered_by: userId,
+        }, { onConflict: "signal_hash" });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
       }
 
       case "adminListInsuranceApplications": {

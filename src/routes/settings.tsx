@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Camera, Landmark, MessageCircle, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview, updateProfileContact } from "@/lib/app-api";
+import { adminRegisterBonusTestDevice, deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview, updateProfileContact } from "@/lib/app-api";
+import { getSignupDeviceContext } from "@/lib/device";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ function SettingsPage() {
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [isSavingContact, setIsSavingContact] = useState(false);
+  const [isRegisteringTestDevice, setIsRegisteringTestDevice] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
@@ -128,6 +130,24 @@ function SettingsPage() {
     }
   };
 
+  const registerTestDevice = async () => {
+    setIsRegisteringTestDevice(true);
+    try {
+      await adminRegisterBonusTestDevice({
+        data: {
+          installationId: getSignupDeviceContext().installationId,
+          label: "Spectra J2 Chrome",
+        },
+      });
+      toast.success("This Chrome installation is now registered as a welcome-bonus test device.");
+      await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (error: any) {
+      toast.error(error.message ?? "Unable to register this test device.");
+    } finally {
+      setIsRegisteringTestDevice(false);
+    }
+  };
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
@@ -183,6 +203,30 @@ function SettingsPage() {
           </Button>
         </div>}
       </section>
+
+      {me?.roles?.includes("admin") && (
+        <section className="rounded-lg border bg-background p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <h2 className="font-medium">Welcome bonus test device</h2>
+          </div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Register this exact browser installation for testing multiple new accounts. Email and phone reuse protections remain active.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={registerTestDevice}
+            disabled={isRegisteringTestDevice || me?.profile?.welcome_bonus_test_device === true}
+          >
+            {me?.profile?.welcome_bonus_test_device
+              ? "This browser is registered"
+              : isRegisteringTestDevice
+                ? "Registering…"
+                : "Register this browser as a test device"}
+          </Button>
+        </section>
+      )}
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
