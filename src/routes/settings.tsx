@@ -224,7 +224,7 @@ function SettingsPage() {
             <div><p className="font-medium">Hello, how can we help you today?</p><p className="mt-1 text-sm text-muted-foreground">Chat with the Sparkle Insure support team on WhatsApp.</p></div>
           </div>
           <Button asChild className="mt-4 w-full bg-emerald-600 text-white hover:bg-emerald-700">
-            <a href="https://wa.me/27688551549?text=How%20does%20Sparkle%20Insure%20work%3F" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/message/Y7ASV3CMDJDDG1" target="_blank" rel="noopener noreferrer">
               <MessageCircle className="mr-2 h-4 w-4" /> Start WhatsApp chat
             </a>
           </Button>
