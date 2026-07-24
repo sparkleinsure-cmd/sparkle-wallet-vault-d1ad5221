@@ -32,6 +32,7 @@ function SettingsPage() {
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const welcomeBonusClaimedAt = me?.profile?.welcome_bonus_claimed_at ?? me?.profile?.welcome_bonus_credited_at ?? null;
+  const welcomeBonusPending = !welcomeBonusClaimedAt && me?.profile?.kyc_status === "pending" && Boolean(me?.profile?.selfie_url);
   const hasBankDetails = Boolean(me?.profile?.bank_name && me?.profile?.bank_account_number);
   const bankChangeAvailableAt = me?.profile?.bank_details_change_requested_at ? new Date(new Date(me.profile.bank_details_change_requested_at).getTime() + 7 * 864e5) : null;
   const canEditBank = !hasBankDetails || Boolean(bankChangeAvailableAt && bankChangeAvailableAt.getTime() <= Date.now());
@@ -192,6 +193,14 @@ function SettingsPage() {
           <p className="text-sm text-muted-foreground">
             Claimed R10 welcome bonus on {new Date(welcomeBonusClaimedAt).toLocaleDateString("en-ZA", { dateStyle: "long" })}.
           </p>
+        ) : me?.profile?.welcome_bonus_eligible === false ? (
+          <p className="text-sm text-muted-foreground">
+            The welcome bonus is not available for this account.
+          </p>
+        ) : welcomeBonusPending ? (
+          <p className="text-sm text-muted-foreground">
+            Your R10 welcome bonus claim is pending administrator approval.
+          </p>
         ) : (<>
           <p className="mb-4 text-sm text-muted-foreground">
           Take a clear, front-facing selfie. An administrator must approve it before your R10 welcome bonus is credited to your growing account.
@@ -224,7 +233,7 @@ function SettingsPage() {
             <div><p className="font-medium">Hello, how can we help you today?</p><p className="mt-1 text-sm text-muted-foreground">Chat with the Sparkle Insure support team on WhatsApp.</p></div>
           </div>
           <Button asChild className="mt-4 w-full bg-emerald-600 text-white hover:bg-emerald-700">
-            <a href="https://wa.me/message/Y7ASV3CMDJDDG1" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/27688551549" target="_blank" rel="noopener noreferrer">
               <MessageCircle className="mr-2 h-4 w-4" /> Start WhatsApp chat
             </a>
           </Button>
