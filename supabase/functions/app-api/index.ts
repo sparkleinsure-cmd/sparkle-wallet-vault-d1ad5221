@@ -465,6 +465,54 @@ serve(async (req) => {
         return json({ data: { url: signed.data.signedUrl } });
       }
 
+      case "adminDeleteUserAndBanEmail": {
+        await assertAdmin(supabase, userId);
+        const targetUserId = requireString(data.userId, "user", 36, 36);
+        if (targetUserId === userId) throw new Error("You cannot delete your own admin account");
+
+        const profile = await admin
+          .from("profiles")
+          .select("id,email")
+          .eq("id", targetUserId)
+          .maybeSingle();
+        if (profile.error) throw new Error(profile.error.message);
+        if (!profile.data) throw new Error("User not found");
+        const bannedEmail = String(profile.data.email ?? "").trim().toLowerCase();
+        if (!bannedEmail || bannedEmail.length > 320) throw new Error("User has no valid email to ban");
+
+        const ban = await admin.from("admin_banned_emails").upsert({
+          email: bannedEmail,
+          banned_user_id: targetUserId,
+          banned_by: userId,
+          banned_at: new Date().toISOString(),
+        }, { onConflict: "email" });
+        if (ban.error) throw new Error(ban.error.message);
+
+        try {
+          for (const bucket of ["kyc", "deposits", "insurance", "community", "account-disputes"]) {
+            const listed = await admin.storage.from(bucket).list(targetUserId, { limit: 1000 });
+            if (listed.error) throw new Error(`Could not inspect ${bucket} files: ${listed.error.message}`);
+            if (listed.data?.length) {
+              const removed = await admin.storage
+                .from(bucket)
+                .remove(listed.data.map((file: any) => `${targetUserId}/${file.name}`));
+              if (removed.error) throw new Error(`Could not remove ${bucket} files: ${removed.error.message}`);
+            }
+          }
+
+          await admin.from("review_file_cleanup_queue").delete().like("object_path", `${targetUserId}/%`);
+          await admin.from("insurance_claims").update({ reviewed_by: null }).eq("reviewed_by", targetUserId);
+          await admin.from("insurance_applications").update({ reviewed_by: null }).eq("reviewed_by", targetUserId);
+          const deleted = await admin.auth.admin.deleteUser(targetUserId);
+          if (deleted.error) throw new Error(deleted.error.message);
+        } catch (error) {
+          await admin.from("admin_banned_emails").delete().eq("email", bannedEmail).eq("banned_user_id", targetUserId);
+          throw error;
+        }
+
+        return json({ data: { ok: true, bannedEmail } });
+      }
+
       case "adminRegisterBonusTestDevice": {
         await assertAdmin(supabase, userId);
         const installationId = requireString(data.installationId, "installation", 36, 36);

@@ -20,6 +20,7 @@ import {
   adminSetAccountFrozen,
   adminRejectAccountFreezeDispute,
   adminGetAccountDisputeUrl,
+  adminDeleteUserAndBanEmail,
   adminListInsuranceApplications,
   adminListInsuranceClaims,
   adminGetInsuranceDocumentUrl,
@@ -628,6 +629,26 @@ function RegisteredUserRow({ user, onChanged }: { user: any; onChanged: () => vo
   const [reviewNote, setReviewNote] = useState("");
   const dispute = user.latest_dispute;
 
+  const deleteUser = async () => {
+    const confirmation = prompt(
+      `This permanently deletes ${user.first_name} ${user.surname}, all account data and private files, and bans only ${user.email} from registering again.\n\nType the user's email to confirm:`,
+    );
+    if (confirmation?.trim().toLowerCase() !== String(user.email).trim().toLowerCase()) {
+      if (confirmation !== null) toast.error("Email confirmation did not match");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await adminDeleteUserAndBanEmail({ data: { userId: user.id } });
+      toast.success(`User deleted and ${result.bannedEmail} permanently banned`);
+      onChanged();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const changeFreeze = async (frozen: boolean) => {
     if (frozen && reason.trim().length < 5) {
       toast.error("Provide a reason for freezing this account");
@@ -720,13 +741,21 @@ function RegisteredUserRow({ user, onChanged }: { user: any; onChanged: () => vo
                   </Button>
                 )}
               </div>
+              <Button variant="destructive" className="w-full" disabled={busy} onClick={deleteUser}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete user and ban email
+              </Button>
             </>
           ) : (
             <>
               <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for AML/compliance freeze" maxLength={500} />
-              <Button variant="destructive" className="w-full" disabled={busy} onClick={() => changeFreeze(true)}>
-                <LockKeyhole className="mr-2 h-4 w-4" /> Freeze account
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="destructive" disabled={busy} onClick={() => changeFreeze(true)}>
+                  <LockKeyhole className="mr-2 h-4 w-4" /> Freeze account
+                </Button>
+                <Button variant="destructive" disabled={busy} onClick={deleteUser}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete user
+                </Button>
+              </div>
             </>
           )}
         </div>

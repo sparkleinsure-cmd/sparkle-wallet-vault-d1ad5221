@@ -62,6 +62,8 @@ export const adminRejectAccountFreezeDispute = ({ data }: Input<{ disputeId: str
   call<{ ok: true }>("adminRejectAccountFreezeDispute", data);
 export const adminGetAccountDisputeUrl = ({ data }: Input<{ path: string }>) =>
   call<{ url: string }>("adminGetAccountDisputeUrl", data);
+export const adminDeleteUserAndBanEmail = ({ data }: Input<{ userId: string }>) =>
+  call<{ ok: true; bannedEmail: string }>("adminDeleteUserAndBanEmail", data);
 export const adminRegisterBonusTestDevice = ({ data }: Input<{ installationId: string; label: string }>) =>
   call<{ ok: true }>("adminRegisterBonusTestDevice", data);
 export const adminListInsuranceApplications = () => call<any>("adminListInsuranceApplications");
