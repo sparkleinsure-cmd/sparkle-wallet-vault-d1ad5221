@@ -38,6 +38,8 @@ export const verifyOtps = ({ data }: Input<{ emailCode: string }>) => call<{ ok:
 export const getInsuranceDashboard = () => call<any>("getInsuranceDashboard");
 export const submitInsuranceApplication = ({ data }: Input<{ items: string[]; bankStatementPaths: string[]; payslipPath: string; idCopyPath: string }>) => call<any>("submitInsuranceApplication", data);
 export const submitInsuranceClaim = ({ data }: Input<{ item: string; amount: number; quotationPath: string }>) => call<any>("submitInsuranceClaim", data);
+export const submitAccountFreezeDispute = ({ data }: Input<{ documentPath: string; statement: string }>) =>
+  call<{ ok: true; disputeId: string }>("submitAccountFreezeDispute", data);
 
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string }>) => call<any>("adminCreditBonus", data);
@@ -53,6 +55,13 @@ export const adminListPendingWithdrawals = () => call<any>("adminListPendingWith
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
 export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");
+export const adminListUsers = ({ data }: Input<{ search?: string }>) => call<{ users: any[] }>("adminListUsers", data);
+export const adminSetAccountFrozen = ({ data }: Input<{ userId: string; frozen: boolean; reason?: string; adminNote?: string }>) =>
+  call<{ ok: true }>("adminSetAccountFrozen", data);
+export const adminRejectAccountFreezeDispute = ({ data }: Input<{ disputeId: string; adminNote: string }>) =>
+  call<{ ok: true }>("adminRejectAccountFreezeDispute", data);
+export const adminGetAccountDisputeUrl = ({ data }: Input<{ path: string }>) =>
+  call<{ url: string }>("adminGetAccountDisputeUrl", data);
 export const adminRegisterBonusTestDevice = ({ data }: Input<{ installationId: string; label: string }>) =>
   call<{ ok: true }>("adminRegisterBonusTestDevice", data);
 export const adminListInsuranceApplications = () => call<any>("adminListInsuranceApplications");

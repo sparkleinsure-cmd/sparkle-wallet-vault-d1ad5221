@@ -228,16 +228,6 @@ body {
   -webkit-background-clip: text;
   color: transparent;
 }
-/* Force hide the Lovable branding badge if it attempts to load */
-#lovable-badge, 
-.lovable-badge,
-[href*="lovable.dev"] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
 /* Mobile launch hand-off: this renders in the first HTML paint, then fades
  * away only after the native Capacitor splash has been dismissed. */
 .app-launch-screen {

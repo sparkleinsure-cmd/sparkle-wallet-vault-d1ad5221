@@ -86,6 +86,14 @@ serve(async (req) => {
     const action = typeof body?.action === "string" ? body.action : "";
     const data = body?.data ?? {};
 
+    if (!action.startsWith("admin") && !["getMe", "submitAccountFreezeDispute", "deleteMyAccount"].includes(action)) {
+      const freeze = await admin.from("profiles").select("account_frozen").eq("id", userId).maybeSingle();
+      if (freeze.error) throw new Error(freeze.error.message);
+      if (freeze.data?.account_frozen) {
+        throw new Error("Your account is frozen while a compliance review is in progress");
+      }
+    }
+
     switch (action) {
       case "getMe": {
         const installationId = typeof data.installationId === "string" && /^[0-9a-f-]{36}$/i.test(data.installationId)
@@ -103,12 +111,13 @@ serve(async (req) => {
           });
           if (remembered.error) console.error("Could not remember network signup signal", remembered.error.message);
         }
-        const [profileRes, walletsRes, txRes, rolesRes, tranchesRes] = await Promise.all([
+        const [profileRes, walletsRes, txRes, rolesRes, tranchesRes, disputesRes] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
           supabase.from("wallets").select("*").eq("user_id", userId).order("currency"),
           supabase.from("transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
           supabase.from("user_roles").select("role").eq("user_id", userId),
           supabase.from("deposit_tranches").select("*").eq("user_id", userId).gt("remaining", 0).order("created_at"),
+          supabase.from("account_freeze_disputes").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
         ]);
         if (profileRes.error) throw new Error(profileRes.error.message);
         let welcomeBonusClaimedAt = profileRes.data?.welcome_bonus_credited_at ?? null;
@@ -156,7 +165,17 @@ serve(async (req) => {
           welcome_bonus_eligible: welcomeBonusEligible,
           welcome_bonus_test_device: Boolean(currentInstallationHash && exemptInstallationHashes.has(currentInstallationHash)),
         } : null;
-        return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [] } });
+        return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [], accountFreezeDisputes: disputesRes.data ?? [] } });
+      }
+
+      case "submitAccountFreezeDispute": {
+        const documentPath = requireString(data.documentPath, "PDF document", 3, 500);
+        const statement = requireString(data.statement, "written statement", 10, 2000);
+        const result = await supabase.rpc("submit_account_freeze_dispute", {
+          p_document_path: documentPath, p_statement: statement,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true, disputeId: result.data } });
       }
 
       case "getInsuranceDashboard": {
@@ -340,7 +359,7 @@ serve(async (req) => {
       case "deleteMyAccount": {
         // Remove private files first; deleting the auth user then cascades the
         // profile, wallet, transaction, tranche, and role records.
-        for (const bucket of ["kyc", "deposits", "insurance", "community"]) {
+        for (const bucket of ["kyc", "deposits", "insurance", "community", "account-disputes"]) {
           const listed = await admin.storage.from(bucket).list(userId, { limit: 1000 });
           if (!listed.error && listed.data?.length) {
             await admin.storage.from(bucket).remove(listed.data.map((file) => `${userId}/${file.name}`));
@@ -386,6 +405,64 @@ serve(async (req) => {
         const result = await admin.from("profiles").select("id", { count: "exact", head: true });
         if (result.error) throw new Error(result.error.message);
         return json({ data: { count: result.count ?? 0 } });
+      }
+
+      case "adminListUsers": {
+        await assertAdmin(supabase, userId);
+        const search = typeof data.search === "string" ? data.search.trim().slice(0, 100) : "";
+        let query = admin
+          .from("profiles")
+          .select("id,account_id,first_name,surname,email,phone,created_at,account_frozen,frozen_at,freeze_reason")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (search) {
+          const safe = search.replace(/[%(),]/g, "");
+          query = query.or(`first_name.ilike.%${safe}%,surname.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,account_id.ilike.%${safe}%,id.eq.${/^[0-9a-f-]{36}$/i.test(safe) ? safe : "00000000-0000-0000-0000-000000000000"}`);
+        }
+        const users = await query;
+        if (users.error) throw new Error(users.error.message);
+        const ids = (users.data ?? []).map((profile: any) => profile.id);
+        const disputes = ids.length
+          ? await admin.from("account_freeze_disputes").select("*").in("user_id", ids).order("created_at", { ascending: false })
+          : { data: [], error: null };
+        if (disputes.error) throw new Error(disputes.error.message);
+        const latestByUser: Record<string, any> = {};
+        for (const dispute of disputes.data ?? []) {
+          if (!latestByUser[dispute.user_id]) latestByUser[dispute.user_id] = dispute;
+        }
+        return json({ data: { users: (users.data ?? []).map((profile: any) => ({ ...profile, latest_dispute: latestByUser[profile.id] ?? null })) } });
+      }
+
+      case "adminSetAccountFrozen": {
+        await assertAdmin(supabase, userId);
+        const targetUserId = requireString(data.userId, "user", 36, 36);
+        const frozen = data.frozen === true;
+        const reason = frozen ? requireString(data.reason, "freeze reason", 5, 500) : null;
+        const adminNote = typeof data.adminNote === "string" ? data.adminNote.trim().slice(0, 1000) : null;
+        const result = await supabase.rpc("admin_set_account_frozen", {
+          p_user_id: targetUserId, p_frozen: frozen, p_reason: reason, p_admin_note: adminNote,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
+      }
+
+      case "adminRejectAccountFreezeDispute": {
+        await assertAdmin(supabase, userId);
+        const disputeId = requireString(data.disputeId, "dispute", 36, 36);
+        const adminNote = requireString(data.adminNote, "review note", 5, 1000);
+        const result = await supabase.rpc("admin_reject_account_freeze_dispute", {
+          p_dispute_id: disputeId, p_admin_note: adminNote,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
+      }
+
+      case "adminGetAccountDisputeUrl": {
+        await assertAdmin(supabase, userId);
+        const path = requireString(data.path, "document path", 3, 500);
+        const signed = await admin.storage.from("account-disputes").createSignedUrl(path, 300);
+        if (signed.error) throw new Error(signed.error.message);
+        return json({ data: { url: signed.data.signedUrl } });
       }
 
       case "adminRegisterBonusTestDevice": {

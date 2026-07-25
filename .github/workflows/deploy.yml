@@ -1,4 +1,4 @@
-name: Deploy Lovable App to Pages
+name: Deploy Sparkle Insure to Pages
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist' # Lovable outputs the final HTML/CSS here
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment

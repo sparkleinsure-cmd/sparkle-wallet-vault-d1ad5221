@@ -9,7 +9,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *   npx cap sync
  *
  * The app runs from the packaged static build and calls Supabase directly.
- * This keeps Appflow independent of Lovable or a separately hosted web server.
+ * This keeps Appflow independent of a separately hosted web server.
  */
 const config: CapacitorConfig = {
   appId: "com.sparkleinsure.app",

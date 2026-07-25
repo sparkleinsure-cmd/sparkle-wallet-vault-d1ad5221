@@ -16,6 +16,10 @@ import {
   adminSetKycStatus,
   adminGetKycProofUrl,
   adminGetUserCount,
+  adminListUsers,
+  adminSetAccountFrozen,
+  adminRejectAccountFreezeDispute,
+  adminGetAccountDisputeUrl,
   adminListInsuranceApplications,
   adminListInsuranceClaims,
   adminGetInsuranceDocumentUrl,
@@ -26,13 +30,14 @@ import { AppHeader } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck } from "lucide-react";
+import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -73,6 +78,13 @@ function AdminPage() {
     refetchInterval: 30_000,
   });
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin") });
+  const [showUsers, setShowUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const { data: registeredUsers, isFetching: usersLoading, refetch: refetchUsers } = useQuery({
+    queryKey: ["admin-users", userSearch],
+    queryFn: () => adminListUsers({ data: { search: userSearch } }),
+    enabled: showUsers && !!me?.roles.includes("admin"),
+  });
   const { data: insuranceApplications, refetch: refetchInsuranceApplications } = useQuery({ queryKey: ["admin-insurance-applications"], queryFn: adminListInsuranceApplications, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: insuranceClaims, refetch: refetchInsuranceClaims } = useQuery({ queryKey: ["admin-insurance-claims"], queryFn: adminListInsuranceClaims, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
@@ -149,13 +161,53 @@ function AdminPage() {
           </Button>
         </div>
 
-        <Card className="glass-card flex items-center gap-4 rounded-2xl p-5">
+        <Card
+          className="glass-card flex cursor-pointer items-center gap-4 rounded-2xl p-5 transition-colors hover:border-primary/40"
+          role="button"
+          tabIndex={0}
+          aria-expanded={showUsers}
+          onClick={() => setShowUsers((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowUsers((value) => !value);
+            }
+          }}
+        >
           <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
-          <div>
+          <div className="flex-1">
             <div className="text-sm text-muted-foreground">Total registered users</div>
             <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
           </div>
+          <div className="flex items-center gap-2 text-sm font-medium text-primary">
+            {showUsers ? "Hide users" : "View users"}
+            {showUsers ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </div>
         </Card>
+
+        {showUsers && (
+          <Card className="glass-card rounded-2xl p-6">
+            <div className="mb-4">
+              <h2 className="font-display text-lg font-semibold">Registered users</h2>
+              <p className="text-sm text-muted-foreground">Search by name, phone, email, account ID, or User ID.</p>
+            </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search registered users…" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
+            </div>
+            {usersLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : !registeredUsers?.users.length ? (
+              <p className="py-4 text-sm text-muted-foreground">No registered users match this search.</p>
+            ) : (
+              <div className="space-y-3">
+                {registeredUsers.users.map((user) => (
+                  <RegisteredUserRow key={user.id} user={user} onChanged={() => refetchUsers()} />
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-1 flex items-center font-display text-lg font-semibold"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Appliance insurance applications
@@ -568,6 +620,119 @@ function downloadWithdrawalPdf(w: any) {
   doc.setTextColor(120);
   doc.text(`Generated ${format(new Date(), "d MMM yyyy HH:mm")} · Sparkle Insure Admin`, 14, 285);
   doc.save(`withdrawal-${p.account_id ?? "user"}-${w.id.slice(0, 8)}.pdf`);
+}
+
+function RegisteredUserRow({ user, onChanged }: { user: any; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reviewNote, setReviewNote] = useState("");
+  const dispute = user.latest_dispute;
+
+  const changeFreeze = async (frozen: boolean) => {
+    if (frozen && reason.trim().length < 5) {
+      toast.error("Provide a reason for freezing this account");
+      return;
+    }
+    if (!confirm(frozen ? `Freeze ${user.first_name} ${user.surname}'s account?` : "Unfreeze this account?")) return;
+    setBusy(true);
+    try {
+      await adminSetAccountFrozen({ data: {
+        userId: user.id,
+        frozen,
+        reason: frozen ? reason.trim() : undefined,
+        adminNote: !frozen ? reviewNote.trim() || undefined : undefined,
+      } });
+      toast.success(frozen ? "Account frozen" : "Account unfrozen");
+      setReason("");
+      setReviewNote("");
+      onChanged();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-xl border p-4 ${user.account_frozen ? "border-destructive/40 bg-destructive/5" : "border-border/60 bg-background/40"}`}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-display font-semibold">{user.first_name} {user.surname}</div>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${user.account_frozen ? "bg-destructive/15 text-destructive" : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}>
+              {user.account_frozen ? "Frozen" : "Active"}
+            </span>
+          </div>
+          <div className="mt-1 grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
+            <span>{user.email}</span>
+            <span>{user.phone || "No phone number"}</span>
+            <span>Account ID: <span className="font-mono text-foreground">{user.account_id}</span></span>
+            <span className="break-all">User ID: <span className="font-mono text-xs text-foreground">{user.id}</span></span>
+          </div>
+          {user.account_frozen && user.freeze_reason && (
+            <p className="mt-3 text-sm"><span className="font-medium">Freeze reason:</span> {user.freeze_reason}</p>
+          )}
+        </div>
+        <div className="w-full shrink-0 space-y-2 lg:w-80">
+          {user.account_frozen ? (
+            <>
+              {dispute?.status === "pending" && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="font-medium text-amber-800 dark:text-amber-200">Dispute awaiting review</div>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{dispute.statement}</p>
+                  <Button
+                    className="mt-2"
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const { url } = await adminGetAccountDisputeUrl({ data: { path: dispute.document_path } });
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      } catch (error: any) { toast.error(error.message); }
+                    }}
+                  >
+                    <FileDown className="mr-2 h-4 w-4" /> Open PDF evidence
+                  </Button>
+                </div>
+              )}
+              <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Review note (recommended)" maxLength={1000} />
+              <div className="flex gap-2">
+                <Button className="flex-1" disabled={busy} onClick={() => changeFreeze(false)}>
+                  <UnlockKeyhole className="mr-2 h-4 w-4" /> Unfreeze
+                </Button>
+                {dispute?.status === "pending" && (
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={async () => {
+                      if (reviewNote.trim().length < 5) return toast.error("Provide a review note");
+                      setBusy(true);
+                      try {
+                        await adminRejectAccountFreezeDispute({ data: { disputeId: dispute.id, adminNote: reviewNote.trim() } });
+                        toast.success("Dispute rejected; account remains frozen");
+                        setReviewNote("");
+                        onChanged();
+                      } catch (error: any) { toast.error(error.message); }
+                      finally { setBusy(false); }
+                    }}
+                  >
+                    Reject dispute
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for AML/compliance freeze" maxLength={500} />
+              <Button variant="destructive" className="w-full" disabled={busy} onClick={() => changeFreeze(true)}>
+                <LockKeyhole className="mr-2 h-4 w-4" /> Freeze account
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function WithdrawalRow({

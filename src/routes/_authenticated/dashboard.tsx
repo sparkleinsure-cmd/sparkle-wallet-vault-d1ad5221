@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency } from "@/lib/app-api";
+import { getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency, submitAccountFreezeDispute } from "@/lib/app-api";
+import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionsTable } from "@/components/TransactionsTable";
@@ -9,9 +10,11 @@ import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { AccountHealthCard } from "@/components/AccountHealthCard";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { type Currency } from "@/lib/currency";
 import { useState } from "react";
-import { Gift, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, FileUp, Gift, Loader2, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Sparkle Insure" }, { name: "robots", content: "noindex" }] }),
@@ -31,17 +34,20 @@ function DashboardPage() {
   const { data: health } = useQuery({
     queryKey: ["account-health"],
     queryFn: () => fetchHealth(),
-    enabled: !!data?.profile,
+    enabled: !!data?.profile && !data.profile.account_frozen,
   });
   const { data: insurance } = useQuery({
     queryKey: ["insurance-dashboard"],
     queryFn: getInsuranceDashboard,
-    enabled: !!data?.profile,
+    enabled: !!data?.profile && !data.profile.account_frozen,
   });
 
   const [depOpen, setDepOpen] = useState(false);
   const [wOpen, setWOpen] = useState(false);
   const [sOpen, setSOpen] = useState(false);
+  const [disputePdf, setDisputePdf] = useState<File | null>(null);
+  const [disputeStatement, setDisputeStatement] = useState("");
+  const [submittingDispute, setSubmittingDispute] = useState(false);
 
   if (isLoading || !data?.profile) {
     return (
@@ -52,6 +58,8 @@ function DashboardPage() {
   }
 
   const profile = data.profile;
+  const isFrozen = profile.account_frozen === true;
+  const pendingDispute = (data.accountFreezeDisputes ?? []).find((dispute: any) => dispute.status === "pending");
   const currency = (profile.primary_currency as Currency) ?? "ZAR";
   const wallet = data.wallets.find((w) => w.currency === currency);
   const balance = Number(wallet?.balance ?? 0);
@@ -84,6 +92,89 @@ function DashboardPage() {
           </p>
         </div>
 
+        {isFrozen && (
+          <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5" role="alert">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-destructive" />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-display text-lg font-bold">Your account is frozen</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Account activity is temporarily blocked while an AML/compliance review is in progress.
+                  {profile.freeze_reason ? ` Reason: ${profile.freeze_reason}` : ""}
+                </p>
+                {pendingDispute ? (
+                  <div className="mt-4 rounded-xl border border-amber-500/30 bg-background/60 p-4">
+                    <div className="font-medium">Your dispute is awaiting admin review</div>
+                    <p className="mt-1 text-sm text-muted-foreground">Submitted {new Date(pendingDispute.created_at).toLocaleString()}. You will regain normal account access if the administrator approves it and unfreezes the account.</p>
+                  </div>
+                ) : (
+                  <form
+                    className="mt-4 space-y-3 rounded-xl border border-border/60 bg-background/60 p-4"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (!disputePdf || disputePdf.type !== "application/pdf") return toast.error("Select a PDF document");
+                      if (disputePdf.size > 10 * 1024 * 1024) return toast.error("The PDF must be 10 MB or smaller");
+                      if (disputeStatement.trim().length < 10) return toast.error("Please add a written statement of at least 10 characters");
+                      setSubmittingDispute(true);
+                      const path = `${profile.id}/${crypto.randomUUID()}.pdf`;
+                      try {
+                        const upload = await supabase.storage.from("account-disputes").upload(path, disputePdf, {
+                          contentType: "application/pdf",
+                          upsert: false,
+                        });
+                        if (upload.error) throw new Error(upload.error.message);
+                        try {
+                          await submitAccountFreezeDispute({ data: { documentPath: path, statement: disputeStatement.trim() } });
+                        } catch (error) {
+                          await supabase.storage.from("account-disputes").remove([path]);
+                          throw error;
+                        }
+                        toast.success("Your dispute was submitted for review");
+                        setDisputePdf(null);
+                        setDisputeStatement("");
+                        await qc.invalidateQueries({ queryKey: ["me"] });
+                      } catch (error: any) {
+                        toast.error(error.message);
+                      } finally {
+                        setSubmittingDispute(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <div className="font-medium">Dispute this freeze</div>
+                      <p className="text-sm text-muted-foreground">Submit a written explanation and one PDF containing legal or supporting proof that the account owner is not involved in money laundering.</p>
+                    </div>
+                    <Textarea
+                      value={disputeStatement}
+                      onChange={(event) => setDisputeStatement(event.target.value)}
+                      placeholder="Explain why the freeze should be reviewed…"
+                      minLength={10}
+                      maxLength={2000}
+                    />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium">
+                        <FileUp className="h-4 w-4" />
+                        <span>{disputePdf?.name ?? "Choose PDF evidence"}</span>
+                        <input
+                          className="sr-only"
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          onChange={(event) => setDisputePdf(event.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      <Button type="submit" disabled={submittingDispute}>
+                        {submittingDispute && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Submit dispute
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isFrozen && <>
         <BalanceCard
           zarBalance={Number(data.wallets.find((w) => w.currency === "ZAR")?.balance ?? 0)}
           usdBalance={Number(data.wallets.find((w) => w.currency === "USD")?.balance ?? 0)}
@@ -142,6 +233,7 @@ function DashboardPage() {
         </div>
 
         <TransactionsTable transactions={data.transactions as any} />
+        </>}
       </main>
 
       <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />

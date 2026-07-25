@@ -1,5 +1,4 @@
--- These buckets were created manually in Lovable Cloud. Create them in every
--- standalone Supabase project so the browser uploads used by the app work.
+-- Create these buckets in every Supabase project so browser uploads work.
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES
   ('kyc', 'kyc', false, 8388608),

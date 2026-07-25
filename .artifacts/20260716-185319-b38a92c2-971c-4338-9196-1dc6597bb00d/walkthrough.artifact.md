@@ -22,6 +22,6 @@ The 1% daily incentive script is scheduled to run at **22:00 UTC**, which corres
 
 ## Verification Results
 - **Build**: Successfully ran `npm run build` locally.
-- **Stability**: Performed a surgical re-application of code to ensure the app loads correctly in the Lovable environment.
+- **Stability**: Performed a surgical re-application of code to ensure the app loads correctly in the target environment.
 
 All changes are live on your GitHub repository.
