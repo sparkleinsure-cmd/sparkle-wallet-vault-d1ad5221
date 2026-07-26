@@ -68,6 +68,14 @@ function removeBudgetInstallHelp() {
 export function showBudgetInstallHelp() {
   if (document.getElementById("budget-pwa-install-help")) return;
 
+  const nativePromptStatus = window.sparklePwaInstallReady
+    ? "Available"
+    : "Not currently offered by Chrome";
+  const serviceWorkerStatus =
+    "serviceWorker" in navigator && navigator.serviceWorker.controller
+      ? "Active"
+      : "Not controlling this page yet";
+
   const banner = document.createElement("aside");
   banner.id = "budget-pwa-install-help";
   banner.setAttribute("role", "dialog");
@@ -92,6 +100,18 @@ export function showBudgetInstallHelp() {
       #budget-pwa-install-help h2 { margin: 0 32px 8px 0; font-size: 17px; }
       #budget-pwa-install-help ol { margin: 10px 0 0; padding-left: 22px; }
       #budget-pwa-install-help li + li { margin-top: 5px; }
+      #budget-pwa-install-help .pwa-status {
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: #edf7f9;
+        font-size: 12px;
+      }
+      #budget-pwa-install-help .pwa-warning {
+        margin: 10px 0 0;
+        font-weight: 650;
+        color: #8a3b12;
+      }
       #budget-pwa-install-help button {
         position: absolute;
         top: 10px;
@@ -111,16 +131,26 @@ export function showBudgetInstallHelp() {
           color: #f1fbfc;
         }
         #budget-pwa-install-help button { background: #19434c; color: #fff; }
+        #budget-pwa-install-help .pwa-status { background: #19434c; }
+        #budget-pwa-install-help .pwa-warning { color: #ffc29f; }
       }
     </style>
     <button type="button" aria-label="Close installation help">×</button>
     <h2 id="budget-pwa-install-title">Install Sparkle from Chrome</h2>
-    <p>Your phone can use Chrome's lightweight home-screen installation:</p>
+    <p>For a real app installation, Chrome must show <strong>Install app</strong>:</p>
     <ol>
       <li>Tap Chrome's three-dot menu <strong>⋮</strong>.</li>
-      <li>Choose <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
-      <li>Confirm <strong>Add</strong>.</li>
+      <li>Choose <strong>Install app</strong>.</li>
+      <li>Confirm <strong>Install</strong>. The app will appear in the app drawer and Android app settings.</li>
     </ol>
+    <p class="pwa-warning">Do not choose “Add to Home screen” for this test. On some phones that creates only a browser shortcut, not an installed WebAPK.</p>
+    <div class="pwa-status">
+      Native install prompt: <strong>${nativePromptStatus}</strong><br>
+      Service worker: <strong>${serviceWorkerStatus}</strong><br>
+      Device profile: <strong>${isBudgetDevice ? "Budget Android" : "Standard"}</strong>
+      ${memoryGB === null ? "" : `<br>Reported memory: <strong>${memoryGB} GB</strong>`}
+      ${cpuCores === null ? "" : `<br>Reported CPU cores: <strong>${cpuCores}</strong>`}
+    </div>
   `;
   banner.querySelector("button")?.addEventListener("click", () => banner.remove());
   document.body.appendChild(banner);
@@ -138,6 +168,7 @@ export async function triggerPWAInstall() {
   const promptEvent = window.deferredPrompt;
   if (!promptEvent) {
     if (isBudgetDevice) window.setTimeout(showBudgetInstallHelp, 2_000);
+    window.dispatchEvent(new Event("sparkle-pwa-install-unavailable"));
     return { outcome: "unavailable" };
   }
 
