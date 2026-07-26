@@ -6,6 +6,16 @@ import { Capacitor } from "@capacitor/core";
 declare global {
   interface Window {
     deferredPrompt?: Event | null;
+    sparkleDeviceCapabilities?: {
+      isAndroid: boolean;
+      isAndroidGoBuild: boolean;
+      isBudgetDevice: boolean;
+      memoryGB: number | null;
+      cpuCores: number | null;
+      shouldLoadHeavyFeatures: boolean;
+      shouldUseComplexAnimations: boolean;
+      installStrategy: "native-menu-fallback" | "webapk-prompt";
+    };
     sparklePwaInstallReady?: boolean;
     triggerPWAInstall?: () => Promise<{ outcome: "accepted" | "dismissed" | "unavailable"; platform?: string }>;
   }

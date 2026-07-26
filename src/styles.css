@@ -214,6 +214,29 @@ body {
   }
 }
 
+/* The device capability module adds this class only on constrained Android
+ * hardware. These overrides reduce continuous GPU work without changing
+ * layout, navigation, or any financial functionality. */
+body.low-spec-mode {
+  background-attachment: scroll;
+}
+
+body.low-spec-mode .glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+body.low-spec-mode .app-launch-screen__content,
+body.low-spec-mode .app-launch-screen__logo,
+body.low-spec-mode .app-launch-screen__loader span {
+  animation: none;
+}
+
+body.low-spec-mode .app-launch-screen__glow {
+  display: none;
+}
+
 @utility gradient-brand {
   background-image: var(--gradient-brand);
 }

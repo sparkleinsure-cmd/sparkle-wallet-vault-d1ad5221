@@ -108,7 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     scripts: [
       { src: "/pwa-register.js" },
-      { src: "/pwa-install.js" },
+      { src: "/pwa-install.js", type: "module" },
       { src: "/eruda-loader.js" },
       { src: "/pwa-debug.js" },
     ],
