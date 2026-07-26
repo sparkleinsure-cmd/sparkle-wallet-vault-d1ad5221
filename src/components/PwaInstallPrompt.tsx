@@ -3,13 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Download, Smartphone, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-};
-
 declare global {
   interface Window {
+    deferredPrompt?: Event | null;
     sparklePwaInstallReady?: boolean;
     triggerPWAInstall?: () => Promise<{ outcome: "accepted" | "dismissed" | "unavailable"; platform?: string }>;
   }
@@ -22,8 +18,7 @@ const DISMISS_DAYS = 7;
 function isStandalone() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
-    localStorage.getItem(INSTALLED_KEY) === "true"
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 
@@ -43,7 +38,6 @@ function isChromeLikeAndroid() {
 }
 
 export function PwaInstallPrompt() {
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosHint, setIosHint] = useState(false);
   const [manualHint, setManualHint] = useState(false);
@@ -61,11 +55,6 @@ export function PwaInstallPrompt() {
       setGlobalPromptReady(true);
       setVisible(true);
     };
-    const onBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-      setVisible(true);
-    };
     const onInstalled = () => {
       localStorage.setItem(INSTALLED_KEY, "true");
       setVisible(false);
@@ -78,7 +67,6 @@ export function PwaInstallPrompt() {
 
     if (window.sparklePwaInstallReady) onGlobalInstallReady();
     window.addEventListener("sparkle-pwa-install-ready", onGlobalInstallReady);
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onInstalled);
     window.addEventListener("sparkle-pwa-installed", onInstalled);
     window.addEventListener("sparkle-pwa-install-unavailable", onInstallUnavailable);
@@ -95,7 +83,6 @@ export function PwaInstallPrompt() {
 
     return () => {
       window.removeEventListener("sparkle-pwa-install-ready", onGlobalInstallReady);
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onInstalled);
       window.removeEventListener("sparkle-pwa-installed", onInstalled);
       window.removeEventListener("sparkle-pwa-install-unavailable", onInstallUnavailable);
@@ -136,17 +123,15 @@ export function PwaInstallPrompt() {
         </div>
       </div>
       <div className="mt-3 flex gap-2">
-        {!iosHint && !manualHint && (installEvent || globalPromptReady) ? (
+        {!iosHint && !manualHint && globalPromptReady ? (
           <Button
             className="flex-1 gradient-brand text-white"
             onClick={async () => {
               const choice = window.triggerPWAInstall
                 ? await window.triggerPWAInstall()
-                : await installEvent!.prompt().then(() => installEvent!.userChoice);
-              if (choice.outcome === "accepted") localStorage.setItem(INSTALLED_KEY, "true");
-              setInstallEvent(null);
+                : { outcome: "unavailable" as const };
               setGlobalPromptReady(false);
-              setVisible(false);
+              if (choice.outcome !== "unavailable") setVisible(false);
             }}
           >
             <Download className="mr-2 h-4 w-4" /> Install app

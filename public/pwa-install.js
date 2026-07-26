@@ -1,77 +1,61 @@
 (function () {
-  var deferredPrompt = null;
-
+  // Chromium supplies this event only after it has confirmed that the current
+  // origin meets its PWA installability requirements.
+  window.deferredPrompt = null;
   window.sparklePwaInstallReady = false;
 
-  function showInstallButton() {
+  function setInstallButtonVisible(visible) {
     var button = document.getElementById("pwa-install-btn");
-    if (button) button.style.display = "inline-flex";
-  }
-
-  function hideInstallButton() {
-    var button = document.getElementById("pwa-install-btn");
-    if (button) button.style.display = "none";
+    if (button) button.style.display = visible ? "inline-flex" : "none";
   }
 
   window.addEventListener("beforeinstallprompt", function (event) {
     event.preventDefault();
-    deferredPrompt = event;
+    window.deferredPrompt = event;
     window.sparklePwaInstallReady = true;
-    showInstallButton();
+    setInstallButtonVisible(true);
     window.dispatchEvent(new Event("sparkle-pwa-install-ready"));
   });
 
-  window.addEventListener("appinstalled", function () {
-    deferredPrompt = null;
+  window.triggerPWAInstall = async function () {
+    var promptEvent = window.deferredPrompt;
+    if (!promptEvent) return { outcome: "unavailable" };
+
+    // A BeforeInstallPromptEvent may be prompted only once.
+    window.deferredPrompt = null;
     window.sparklePwaInstallReady = false;
+    setInstallButtonVisible(false);
+
+    try {
+      var promptResult = await promptEvent.prompt();
+      var choice = promptResult && promptResult.outcome
+        ? promptResult
+        : await promptEvent.userChoice;
+      window.dispatchEvent(
+        new CustomEvent("sparkle-pwa-install-choice", { detail: choice }),
+      );
+      return choice;
+    } catch (error) {
+      console.warn("PWA install prompt failed", error);
+      return { outcome: "unavailable" };
+    }
+  };
+
+  window.addEventListener("appinstalled", function () {
+    window.deferredPrompt = null;
+    window.sparklePwaInstallReady = false;
+    setInstallButtonVisible(false);
     try {
       window.localStorage.setItem("sparkle_pwa_installed", "true");
     } catch (_) {
       // Storage may be unavailable in private browsing.
     }
-    hideInstallButton();
     window.dispatchEvent(new Event("sparkle-pwa-installed"));
   });
 
-  window.triggerPWAInstall = function () {
-    if (!deferredPrompt) {
-      return Promise.resolve({ outcome: "unavailable" });
-    }
-
-    return deferredPrompt.prompt().then(function () {
-      return deferredPrompt.userChoice.then(function (choiceResult) {
-        if (choiceResult.outcome === "accepted") {
-          try {
-            window.localStorage.setItem("sparkle_pwa_installed", "true");
-          } catch (_) {
-            // Storage may be unavailable in private browsing.
-          }
-        }
-        deferredPrompt = null;
-        window.sparklePwaInstallReady = false;
-        hideInstallButton();
-        return choiceResult;
-      });
-    });
-  };
-
-  function wireInstallButton() {
-    var button = document.getElementById("pwa-install-btn");
-    if (!button || button.dataset.sparklePwaWired === "true") return;
-
-    button.dataset.sparklePwaWired = "true";
-    button.addEventListener("click", function () {
-      window.triggerPWAInstall();
-    });
-  }
-
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
-      wireInstallButton();
-      if (window.sparklePwaInstallReady) showInstallButton();
-    });
-  } else {
-    wireInstallButton();
-    if (window.sparklePwaInstallReady) showInstallButton();
+      setInstallButtonVisible(window.sparklePwaInstallReady);
+    }, { once: true });
   }
 })();

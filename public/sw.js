@@ -1,4 +1,4 @@
-const CACHE_NAME = "sparkle-insure-v5";
+const CACHE_NAME = "sparkle-insure-v6";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -15,7 +15,18 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        Promise.all(
+          APP_SHELL.map((url) =>
+            cache.add(new Request(url, { cache: "reload" })).catch((error) => {
+              console.warn("App-shell resource was not cached", url, error);
+            }),
+          ),
+        ),
+      )
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -63,6 +74,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
+          if (!response.ok) throw new Error(`Navigation failed with ${response.status}`);
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put("/", copy.clone());
@@ -70,7 +82,13 @@ self.addEventListener("fetch", (event) => {
           });
           return response;
         })
-        .catch(() => caches.match("/index.html").then((cached) => cached || caches.match("/"))),
+        .catch(async () => {
+          const cached = await caches.match("/index.html") || await caches.match("/");
+          return cached || new Response(
+            "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Sparkle Insure</title></head><body><main><h1>You are offline</h1><p>Reconnect to continue using Sparkle Insure.</p></main></body></html>",
+            { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+          );
+        }),
     );
     return;
   }
