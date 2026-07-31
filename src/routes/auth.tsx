@@ -251,6 +251,7 @@ function ResetPasswordForm() {
 }
 
 function SignUpForm() {
+  const { ref } = Route.useSearch();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -289,6 +290,7 @@ function SignUpForm() {
               primary_currency: "ZAR",
               installation_id: deviceContext.installationId,
               system_fingerprint: deviceContext.systemFingerprint,
+              ...(ref ? { referral_code: ref } : {}),
             },
           },
         });
