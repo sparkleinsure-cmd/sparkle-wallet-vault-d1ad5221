@@ -20,9 +20,9 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
   const [type, setType] = useState<string>("all");
 
   const filtered = useMemo(() => {
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     return transactions.filter((t) => {
-      if (new Date(t.created_at).getTime() < sevenDaysAgo) return false;
+      if (new Date(t.created_at).getTime() < oneDayAgo) return false;
       const matchesType = type === "all" || t.type === type;
       const s = q.trim().toLowerCase();
       const matchesQ = !s ||
@@ -38,7 +38,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold">Recent activity</h2>
-          <p className="text-xs text-muted-foreground">Last 7 days</p>
+          <p className="text-xs text-muted-foreground">Last 24 hours</p>
         </div>
         <div className="flex flex-1 gap-2 md:max-w-md">
           <div className="relative flex-1">

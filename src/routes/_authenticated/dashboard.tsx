@@ -9,10 +9,11 @@ import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { AccountHealthCard } from "@/components/AccountHealthCard";
+import { ReferFriendCard } from "@/components/ReferFriendCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { type Currency } from "@/lib/currency";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, FileUp, Gift, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,6 +50,16 @@ function DashboardPage() {
   const [disputeStatement, setDisputeStatement] = useState("");
   const [submittingDispute, setSubmittingDispute] = useState(false);
 
+  useEffect(() => {
+    const referralCode = localStorage.getItem("sparkle_referral_code");
+    if (!referralCode || !data?.profile) return;
+    void supabase.rpc("register_my_referral" as any, { p_referral_code: referralCode } as any)
+      .then(({ data: registered, error }) => {
+        if (registered) localStorage.removeItem("sparkle_referral_code");
+        else if (error) console.warn("Referral registration was not completed", error.message);
+      });
+  }, [data?.profile]);
+
   if (isLoading || !data?.profile) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -61,7 +72,7 @@ function DashboardPage() {
   const isFrozen = profile.account_frozen === true;
   const pendingDispute = (data.accountFreezeDisputes ?? []).find((dispute: any) => dispute.status === "pending");
   const currency = (profile.primary_currency as Currency) ?? "ZAR";
-  const wallet = data.wallets.find((w) => w.currency === currency);
+  const wallet = data.wallets.find((w: any) => w.currency === currency);
   const balance = Number(wallet?.balance ?? 0);
   const isAdmin = data.roles.includes("admin");
   const tranches = ((data as any).tranches ?? []) as Array<{ currency: string; remaining: number; maturity_date: string }>;
@@ -176,8 +187,8 @@ function DashboardPage() {
 
         {!isFrozen && <>
         <BalanceCard
-          zarBalance={Number(data.wallets.find((w) => w.currency === "ZAR")?.balance ?? 0)}
-          usdBalance={Number(data.wallets.find((w) => w.currency === "USD")?.balance ?? 0)}
+          zarBalance={Number(data.wallets.find((w: any) => w.currency === "ZAR")?.balance ?? 0)}
+          usdBalance={Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0)}
           currency={currency}
           accountId={profile.account_id}
           tranches={(data as any).tranches ?? []}
@@ -233,6 +244,7 @@ function DashboardPage() {
         </div>
 
         <TransactionsTable transactions={data.transactions as any} />
+        <ReferFriendCard accountId={profile.account_id} />
         </>}
       </main>
 

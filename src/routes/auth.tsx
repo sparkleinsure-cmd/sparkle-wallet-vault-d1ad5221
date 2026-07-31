@@ -25,9 +25,13 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Sign in or open a Sparkle Insure wallet in minutes." },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    mode: (s.mode === "signup" ? "signup" : s.mode === "reset" ? "reset" : "signin") as "signup" | "signin" | "reset",
-  }),
+  validateSearch: (s: Record<string, unknown>) => {
+    const ref = typeof s.ref === "string" && /^[a-z0-9-]{3,40}$/i.test(s.ref) ? s.ref : undefined;
+    return {
+      mode: (s.mode === "signup" ? "signup" : s.mode === "reset" ? "reset" : "signin") as "signup" | "signin" | "reset",
+      ...(ref ? { ref } : {}),
+    };
+  },
   component: AuthPage,
 });
 
@@ -40,9 +44,13 @@ const signupSchema = z.object({
 });
 
 function AuthPage() {
-  const { mode } = Route.useSearch();
+  const { mode, ref } = Route.useSearch();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"signin" | "signup" | "reset">(mode);
+
+  useEffect(() => {
+    if (ref) localStorage.setItem("sparkle_referral_code", ref);
+  }, [ref]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -92,6 +100,11 @@ function AuthPage() {
               </button>
             </div>}
           </div>
+          {tab === "signup" && ref && (
+            <div className="mb-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm">
+              You&apos;ve been invited to Sparkle Insure. Create your account to join your friend.
+            </div>
+          )}
           {tab === "signin" ? <SignInForm /> : tab === "reset" ? <ResetPasswordForm /> : <SignUpForm />}
           {tab !== "reset" && <>
           <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
