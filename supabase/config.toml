@@ -1,11 +1,11 @@
 project_id = "jrqrpjdlhzzfanqwinct"
 
 [auth]
-site_url = "https://sparkle-wallet-vault-d1ad5221.vercel.app"
+site_url = "https://sparkleinsure.app"
 additional_redirect_urls = [
-  "https://sparkle-wallet-vault-d1ad5221.vercel.app/auth/callback",
-  "https://sparkle-wallet-vault-d1ad5221.vercel.app/auth/callback?next=dashboard",
-  "https://sparkle-wallet-vault-d1ad5221.vercel.app/auth/callback?next=reset",
+  "https://sparkleinsure.app/auth/callback",
+  "https://sparkleinsure.app/auth/callback?next=dashboard",
+  "https://sparkleinsure.app/auth/callback?next=reset",
   "http://localhost:3000/auth/callback",
   "http://localhost:5173/auth/callback",
 ]

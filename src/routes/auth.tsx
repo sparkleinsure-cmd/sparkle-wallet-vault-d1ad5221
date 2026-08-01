@@ -11,11 +11,12 @@ import { Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { biometricIsReady, biometricSignIn } from "@/lib/biometric";
 import { getSignupDeviceContext } from "@/lib/device";
 import { Capacitor } from "@capacitor/core";
+import { PUBLIC_APP_ORIGIN } from "@/lib/public-url";
 
 const authRedirectUrl = (mode: "signin" | "reset" = "signin") =>
   Capacitor.isNativePlatform()
     ? `com.sparkleinsure.app://auth/confirm?mode=${mode}`
-    : `${window.location.origin}/auth/callback?next=${mode === "reset" ? "reset" : "dashboard"}`;
+    : `${PUBLIC_APP_ORIGIN}/auth/callback?next=${mode === "reset" ? "reset" : "dashboard"}`;
 
 export const Route = createFileRoute("/auth")({
   ssr: false,

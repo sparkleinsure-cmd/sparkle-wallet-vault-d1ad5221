@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { Copy, Facebook, Gift, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PUBLIC_APP_ORIGIN } from "@/lib/public-url";
 
 export function ReferFriendCard({ accountId }: { accountId: string }) {
   const referralUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const publicOrigin = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
-    const url = new URL("/auth", publicOrigin);
+    const url = new URL("/auth", PUBLIC_APP_ORIGIN);
     url.searchParams.set("mode", "signup");
     url.searchParams.set("ref", accountId);
     return url.toString();
