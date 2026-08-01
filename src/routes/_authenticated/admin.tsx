@@ -140,7 +140,7 @@ function AdminPage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader isAdmin accountId={me.profile?.account_id} />
+      <AppHeader isAdmin />
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-10">
         <div className="flex items-center justify-between">
           <div>

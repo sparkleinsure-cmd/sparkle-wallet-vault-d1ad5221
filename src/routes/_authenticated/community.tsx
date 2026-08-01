@@ -194,7 +194,7 @@ function CommunityPage() {
 
   return (
     <div className="min-h-screen pb-16">
-      <AppHeader isAdmin={isAdmin} accountId={me.profile.account_id} />
+      <AppHeader isAdmin={isAdmin} />
       <main className="mx-auto max-w-4xl space-y-5 px-4 py-6 md:px-6 md:py-10">
         <div>
           <h1 className="flex items-center gap-2 font-display text-2xl font-bold md:text-3xl">

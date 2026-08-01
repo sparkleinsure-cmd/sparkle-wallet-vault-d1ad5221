@@ -34,7 +34,7 @@ function InsurancePage() {
   const application = data?.application;
   if (isLoading || !me) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   const refresh = () => qc.invalidateQueries({ queryKey: ["insurance-dashboard"] });
-  return <div className="min-h-screen pb-12"><AppHeader isAdmin={me.roles.includes("admin")} accountId={me.profile?.account_id} />
+  return <div className="min-h-screen pb-12"><AppHeader isAdmin={me.roles.includes("admin")} />
     <main className="mx-auto max-w-4xl space-y-5 px-4 py-6 md:px-6 md:py-10">
       <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
       <div><h1 className="font-display text-3xl font-bold">Insure your home appliances</h1><p className="text-sm text-muted-foreground">Apply for cover and manage approved claims in one place.</p></div>

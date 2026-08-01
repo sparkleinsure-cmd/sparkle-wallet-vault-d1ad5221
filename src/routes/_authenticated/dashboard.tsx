@@ -69,6 +69,10 @@ function DashboardPage() {
   }
 
   const profile = data.profile;
+  const displayName =
+    [String(profile.first_name ?? "").trim().split(/\s+/)[0], String(profile.surname ?? "").trim()]
+      .filter(Boolean)
+      .join(" ") || "Member";
   const isFrozen = profile.account_frozen === true;
   const pendingDispute = (data.accountFreezeDisputes ?? []).find((dispute: any) => dispute.status === "pending");
   const currency = (profile.primary_currency as Currency) ?? "ZAR";
@@ -92,15 +96,11 @@ function DashboardPage() {
 
   return (
     <div className="min-h-screen pb-16">
-      <AppHeader isAdmin={isAdmin} accountId={profile.account_id} />
+      <AppHeader isAdmin={isAdmin} />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6 md:py-10">
         <div>
-          <h1 className="font-display text-2xl font-bold md:text-3xl">
-            Welcome back, {profile.first_name} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Your Sparkle Insure wallet at a glance.
-          </p>
+          <h1 className="font-display text-2xl font-bold md:text-3xl">{displayName}</h1>
+          <p className="text-sm text-muted-foreground">ID · {profile.account_id}</p>
         </div>
 
         {isFrozen && (
