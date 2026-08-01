@@ -19,6 +19,20 @@ max_frequency = "1m"
 otp_length = 8
 otp_expiry = 3600
 
+[auth.email.smtp]
+host = "smtp.hostinger.com"
+port = 465
+user = "noreply@sparkleinsure.app"
+pass = "env(SUPABASE_AUTH_SMTP_PASS)"
+admin_email = "noreply@sparkleinsure.app"
+sender_name = "Sparkle Insure"
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+skip_nonce_check = false
+
 [auth.mfa.totp]
 enroll_enabled = true
 verify_enabled = true
