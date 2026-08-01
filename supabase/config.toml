@@ -22,7 +22,7 @@ otp_expiry = 3600
 [auth.email.smtp]
 enabled = true
 host = "smtp.hostinger.com"
-port = 465
+port = 587
 user = "noreply@sparkleinsure.app"
 pass = "env(SUPABASE_AUTH_SMTP_PASS)"
 admin_email = "noreply@sparkleinsure.app"
