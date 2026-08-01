@@ -20,6 +20,7 @@ otp_length = 8
 otp_expiry = 3600
 
 [auth.email.smtp]
+enabled = true
 host = "smtp.hostinger.com"
 port = 465
 user = "noreply@sparkleinsure.app"
@@ -32,6 +33,11 @@ enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
 skip_nonce_check = false
+
+[auth.rate_limit]
+# Custom SMTP supports a higher project-wide allowance than Supabase's
+# development mailer. Per-address requests remain limited by max_frequency.
+email_sent = 100
 
 [auth.mfa.totp]
 enroll_enabled = true
