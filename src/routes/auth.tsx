@@ -12,6 +12,7 @@ import { biometricIsReady, biometricSignIn } from "@/lib/biometric";
 import { getSignupDeviceContext } from "@/lib/device";
 import { Capacitor } from "@capacitor/core";
 import { PUBLIC_APP_ORIGIN } from "@/lib/public-url";
+import { GoogleIdentityButton } from "@/components/GoogleIdentityButton";
 
 const authRedirectUrl = (mode: "signin" | "reset" = "signin") =>
   Capacitor.isNativePlatform()
@@ -29,7 +30,8 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s: Record<string, unknown>) => {
     const ref = typeof s.ref === "string" && /^[a-z0-9-]{3,40}$/i.test(s.ref) ? s.ref : undefined;
     return {
-      mode: (s.mode === "signup" ? "signup" : s.mode === "reset" ? "reset" : "signin") as "signup" | "signin" | "reset",
+      mode: (s.mode === "signup" ? "signup" : s.mode === "reset" ? "reset" : "signin") as
+        "signup" | "signin" | "reset",
       ...(ref ? { ref } : {}),
     };
   },
@@ -40,7 +42,16 @@ const signupSchema = z.object({
   firstName: z.string().trim().min(1).max(60),
   surname: z.string().trim().min(1).max(60),
   email: z.string().trim().email().max(200),
-  phone: z.string().trim().refine((value) => /^\+?[0-9 ()-]{8,24}$/.test(value) && value.replace(/\D/g, "").length >= 8 && value.replace(/\D/g, "").length <= 15, "Enter a valid phone number with 8 to 15 digits"),
+  phone: z
+    .string()
+    .trim()
+    .refine(
+      (value) =>
+        /^\+?[0-9 ()-]{8,24}$/.test(value) &&
+        value.replace(/\D/g, "").length >= 8 &&
+        value.replace(/\D/g, "").length <= 15,
+      "Enter a valid phone number with 8 to 15 digits",
+    ),
   password: z.string().min(8).max(72),
 });
 
@@ -73,8 +84,8 @@ function AuthPage() {
               Your money, insured and always in reach.
             </h2>
             <p className="mt-4 max-w-md text-white/80">
-              Join thousands using Sparkle Insure to save, spend and move funds across Africa
-              with the safety of bank-grade security.
+              Join thousands using Sparkle Insure to save, spend and move funds across Africa with
+              the safety of bank-grade security.
             </p>
           </div>
           <span className="text-xs text-white/60">© {new Date().getFullYear()} Sparkle Insure</span>
@@ -84,48 +95,50 @@ function AuthPage() {
         <Card className="glass-card w-full max-w-md rounded-3xl p-8">
           <div className="mb-6 flex items-center justify-between">
             <h1 className="font-display text-2xl font-bold">
-              {tab === "signin" ? "Welcome back" : tab === "reset" ? "Set a new password" : "Open your wallet"}
+              {tab === "signin"
+                ? "Welcome back"
+                : tab === "reset"
+                  ? "Set a new password"
+                  : "Open your wallet"}
             </h1>
-            {tab !== "reset" && <div className="flex rounded-full border border-border p-1 text-xs">
-              <button
-                onClick={() => setTab("signin")}
-                className={`rounded-full px-3 py-1 ${tab === "signin" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-              >
-                Sign in
-              </button>
-              <button
-                onClick={() => setTab("signup")}
-                className={`rounded-full px-3 py-1 ${tab === "signup" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-              >
-                Sign up
-              </button>
-            </div>}
+            {tab !== "reset" && (
+              <div className="flex rounded-full border border-border p-1 text-xs">
+                <button
+                  onClick={() => setTab("signin")}
+                  className={`rounded-full px-3 py-1 ${tab === "signin" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => setTab("signup")}
+                  className={`rounded-full px-3 py-1 ${tab === "signup" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
           </div>
           {tab === "signup" && ref && (
             <div className="mb-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm">
               You&apos;ve been invited to Sparkle Insure. Create your account to join your friend.
             </div>
           )}
-          {tab === "signin" ? <SignInForm /> : tab === "reset" ? <ResetPasswordForm /> : <SignUpForm />}
-          {tab !== "reset" && <>
-          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={async () => {
-              const { error } = await supabase.auth.signInWithOAuth({
-                provider: "google",
-                options: { redirectTo: authRedirectUrl() },
-              });
-              if (error) toast.error(error.message);
-            }}
-          >
-            Continue with Google
-          </Button>
-          </>}
+          {tab === "signin" ? (
+            <SignInForm />
+          ) : tab === "reset" ? (
+            <ResetPasswordForm />
+          ) : (
+            <SignUpForm />
+          )}
+          {tab !== "reset" && (
+            <>
+              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="h-px flex-1 bg-border" /> or{" "}
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <GoogleIdentityButton mode={tab} />
+            </>
+          )}
         </Card>
       </div>
     </div>
@@ -177,7 +190,11 @@ function SignInForm() {
   const [password, setPassword] = useState("");
   const [resetting, setResetting] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
-  useEffect(() => { void biometricIsReady().then(setBiometricReady).catch(() => setBiometricReady(false)); }, []);
+  useEffect(() => {
+    void biometricIsReady()
+      .then(setBiometricReady)
+      .catch(() => setBiometricReady(false));
+  }, []);
   return (
     <form
       className="space-y-4"
@@ -193,7 +210,13 @@ function SignInForm() {
     >
       <div>
         <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Input
+          id="email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
       </div>
       <div>
         <div className="flex items-center justify-between">
@@ -216,12 +239,38 @@ function SignInForm() {
             {resetting ? "Sending…" : "Forgot password?"}
           </button>
         </div>
-        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
+        <PasswordInput
+          id="password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
       </div>
       <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign in
       </Button>
-      {biometricReady && <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={async () => { setLoading(true); try { await biometricSignIn(); toast.success("Signed in securely."); navigate({ to: "/dashboard" }); } catch (error: any) { toast.error(error.message ?? "Biometric sign-in was not completed."); } finally { setLoading(false); } }}><Fingerprint className="mr-2 h-4 w-4" /> Sign in with biometrics</Button>}
+      {biometricReady && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            try {
+              await biometricSignIn();
+              toast.success("Signed in securely.");
+              navigate({ to: "/dashboard" });
+            } catch (error: any) {
+              toast.error(error.message ?? "Biometric sign-in was not completed.");
+            } finally {
+              setLoading(false);
+            }
+          }}
+        >
+          <Fingerprint className="mr-2 h-4 w-4" /> Sign in with biometrics
+        </Button>
+      )}
     </form>
   );
 }
@@ -231,24 +280,52 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
-  return <form className="space-y-4" onSubmit={async (event) => {
-    event.preventDefault();
-    if (password.length < 8) return toast.error("Password must contain at least 8 characters.");
-    if (password !== confirmation) return toast.error("Passwords do not match.");
-    setLoading(true);
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) { setLoading(false); return toast.error("This recovery link is invalid or expired. Request a new link."); }
-    const { error } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Password updated successfully.");
-    navigate({ to: "/dashboard", replace: true });
-  }}>
-    <p className="text-sm text-muted-foreground">Enter and confirm your new password below.</p>
-    <div><Label htmlFor="new-password">New password</Label><PasswordInput id="new-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} /></div>
-    <div><Label htmlFor="confirm-password">Confirm new password</Label><PasswordInput id="confirm-password" minLength={8} autoComplete="new-password" value={confirmation} onChange={setConfirmation} /></div>
-    <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Update password</Button>
-  </form>;
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (password.length < 8) return toast.error("Password must contain at least 8 characters.");
+        if (password !== confirmation) return toast.error("Passwords do not match.");
+        setLoading(true);
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) {
+          setLoading(false);
+          return toast.error("This recovery link is invalid or expired. Request a new link.");
+        }
+        const { error } = await supabase.auth.updateUser({ password });
+        setLoading(false);
+        if (error) return toast.error(error.message);
+        toast.success("Password updated successfully.");
+        navigate({ to: "/dashboard", replace: true });
+      }}
+    >
+      <p className="text-sm text-muted-foreground">Enter and confirm your new password below.</p>
+      <div>
+        <Label htmlFor="new-password">New password</Label>
+        <PasswordInput
+          id="new-password"
+          minLength={8}
+          autoComplete="new-password"
+          value={password}
+          onChange={setPassword}
+        />
+      </div>
+      <div>
+        <Label htmlFor="confirm-password">Confirm new password</Label>
+        <PasswordInput
+          id="confirm-password"
+          minLength={8}
+          autoComplete="new-password"
+          value={confirmation}
+          onChange={setConfirmation}
+        />
+      </div>
+      <Button type="submit" disabled={loading} className="w-full gradient-brand text-white">
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Update password
+      </Button>
+    </form>
+  );
 }
 
 function SignUpForm() {
@@ -273,11 +350,25 @@ function SignUpForm() {
         setLoading(true);
         const email = form.email.trim().toLowerCase();
         const phone = form.phone.trim();
-        const availability = await supabase.rpc("check_signup_availability" as any, { p_email: email, p_phone: phone } as any);
-        if (availability.error) { setLoading(false); return toast.error(availability.error.message); }
+        const availability = await supabase.rpc(
+          "check_signup_availability" as any,
+          { p_email: email, p_phone: phone } as any,
+        );
+        if (availability.error) {
+          setLoading(false);
+          return toast.error(availability.error.message);
+        }
         const existing = availability.data as any;
-        if (existing?.emailExists) { setLoading(false); return toast.error("An account with this email already exists. Sign in or reset your password."); }
-        if (existing?.phoneExists) { setLoading(false); return toast.error("An account with this phone number already exists."); }
+        if (existing?.emailExists) {
+          setLoading(false);
+          return toast.error(
+            "An account with this email already exists. Sign in or reset your password.",
+          );
+        }
+        if (existing?.phoneExists) {
+          setLoading(false);
+          return toast.error("An account with this phone number already exists.");
+        }
         const deviceContext = getSignupDeviceContext();
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -313,32 +404,59 @@ function SignUpForm() {
         let session = (await supabase.auth.getSession()).data.session;
         if (!session && !data.session) {
           setLoading(false);
-          toast.success("Check your email and tap the verification link to verify your account. You can then sign in.", { duration: 10_000 });
+          toast.success(
+            "Check your email and tap the verification link to verify your account. You can then sign in.",
+            { duration: 10_000 },
+          );
           navigate({ to: "/auth", search: { mode: "signin" } });
           return;
         }
         setLoading(false);
-        toast.success("Account created. You can add verification documents later in Settings before withdrawing.");
+        toast.success(
+          "Account created. You can add verification documents later in Settings before withdrawing.",
+        );
         navigate({ to: "/dashboard" });
       }}
     >
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="fn">First name</Label>
-          <Input id="fn" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          <Input
+            id="fn"
+            required
+            value={form.firstName}
+            onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+          />
         </div>
         <div>
           <Label htmlFor="sn">Surname</Label>
-          <Input id="sn" required value={form.surname} onChange={(e) => setForm({ ...form, surname: e.target.value })} />
+          <Input
+            id="sn"
+            required
+            value={form.surname}
+            onChange={(e) => setForm({ ...form, surname: e.target.value })}
+          />
         </div>
       </div>
       <div>
         <Label htmlFor="em">Email</Label>
-        <Input id="em" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <Input
+          id="em"
+          type="email"
+          required
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
       </div>
       <div>
         <Label htmlFor="ph">Phone number</Label>
-        <Input id="ph" required placeholder="+27 82 000 0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        <Input
+          id="ph"
+          required
+          placeholder="+27 82 000 0000"
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+        />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
