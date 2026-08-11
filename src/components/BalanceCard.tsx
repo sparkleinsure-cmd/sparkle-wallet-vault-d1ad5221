@@ -62,18 +62,18 @@ export function BalanceCard({
   );
 
   return (
-    <div className="glass-card relative overflow-hidden rounded-3xl p-6 md:p-8">
+    <div className="glass-card relative overflow-hidden rounded-3xl p-5 md:p-8">
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full gradient-brand opacity-30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full gradient-accent opacity-20 blur-3xl" />
       <div className="relative">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Total value</div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Portfolio</div>
             <div className="mt-1 font-display text-3xl font-bold md:text-4xl">
               {formatMoney(total, currency)}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
-              1 USD = {usdToZar.toFixed(2)} ZAR · Account {accountId}
+              Total balance · 1 USD = {usdToZar.toFixed(2)} ZAR
             </div>
           </div>
           <Select value={currency} onValueChange={(v) => onCurrencyChange(v as Currency)}>

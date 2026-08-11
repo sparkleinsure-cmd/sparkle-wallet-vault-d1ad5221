@@ -16,6 +16,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
+import { applyTheme, getThemePreference } from "@/lib/theme";
 
 function NotFoundComponent() {
   return (
@@ -162,6 +163,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const [appReady, setAppReady] = useState(false);
+
+  useEffect(() => {
+    const syncWithDevice = () => applyTheme(getThemePreference());
+    const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+    syncWithDevice();
+    deviceTheme.addEventListener("change", syncWithDevice);
+    return () => deviceTheme.removeEventListener("change", syncWithDevice);
+  }, []);
 
   useEffect(() => {
     // Wait for two frames so the in-app splash is visibly painted below the

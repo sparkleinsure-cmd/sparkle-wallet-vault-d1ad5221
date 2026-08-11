@@ -1,6 +1,6 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Camera, Landmark, MessageCircle, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, Camera, Landmark, MessageCircle, Moon, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { adminRegisterBonusTestDevice, deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview, updateProfileContact } from "@/lib/app-api";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { getThemePreference, setThemePreference, type ThemePreference } from "@/lib/theme";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -30,6 +31,7 @@ function SettingsPage() {
   const [postalCode, setPostalCode] = useState("");
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [isRegisteringTestDevice, setIsRegisteringTestDevice] = useState(false);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
@@ -43,6 +45,12 @@ function SettingsPage() {
     setPhone(me.profile.phone ?? ""); setStreetAddress(me.profile.street_address ?? "");
     setProvince(me.profile.province ?? ""); setPostalCode(me.profile.postal_code ?? "");
   }, [me?.profile?.id, me?.profile?.phone, me?.profile?.street_address, me?.profile?.province, me?.profile?.postal_code]);
+  useEffect(() => setThemePreferenceState(getThemePreference()), []);
+
+  const chooseTheme = (preference: ThemePreference) => {
+    setThemePreferenceState(preference);
+    setThemePreference(preference);
+  };
 
   const saveContact = async () => {
     setIsSavingContact(true);
@@ -161,6 +169,19 @@ function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage account actions and legal links.</p>
       </div>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="flex items-center gap-2"><Moon className="h-4 w-4 text-primary" /><h2 className="font-medium">Appearance</h2></div>
+        <p className="mt-1 text-sm text-muted-foreground">Choose how Sparkle Insure looks on this device.</p>
+        <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="Theme preference">
+          {(["system", "light", "dark"] as ThemePreference[]).map((preference) => (
+            <Button key={preference} type="button" variant={themePreference === preference ? "default" : "outline"} className={themePreference === preference ? "gradient-brand text-white" : ""} onClick={() => chooseTheme(preference)}>
+              {preference === "system" ? "Device" : preference[0].toUpperCase() + preference.slice(1)}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Device follows your phone or browser’s current light/dark setting.</p>
+      </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-4 flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" /><h2 className="font-medium">Your details</h2></div>

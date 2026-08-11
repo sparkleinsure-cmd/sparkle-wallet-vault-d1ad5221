@@ -96,12 +96,8 @@ function DashboardPage() {
 
   return (
     <div className="min-h-screen pb-16">
-      <AppHeader isAdmin={isAdmin} />
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6 md:py-10">
-        <div>
-          <h1 className="font-display text-2xl font-bold md:text-3xl">{displayName}</h1>
-          <p className="text-sm text-muted-foreground">ID · {profile.account_id}</p>
-        </div>
+      <AppHeader isAdmin={isAdmin} displayName={displayName} accountId={profile.account_id} />
+      <main className="mx-auto max-w-5xl space-y-5 px-3 py-4 sm:px-4 md:px-6 md:py-8">
 
         {isFrozen && (
           <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5" role="alert">
@@ -186,6 +182,11 @@ function DashboardPage() {
         )}
 
         {!isFrozen && <>
+        <section>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h1 className="font-display text-xl font-bold">Accounts</h1>
+            <span className="text-xs text-muted-foreground">Your portfolio</span>
+          </div>
         <BalanceCard
           zarBalance={Number(data.wallets.find((w: any) => w.currency === "ZAR")?.balance ?? 0)}
           usdBalance={Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0)}
@@ -200,6 +201,7 @@ function DashboardPage() {
           onWithdraw={() => setWOpen(true)}
           onStatement={() => setSOpen(true)}
         />
+        </section>
 
         <div className="grid gap-4 md:grid-cols-2">
           <AccountHealthCard health={health} currentWithdrawable={withdrawable} />
