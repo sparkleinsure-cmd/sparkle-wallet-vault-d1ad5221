@@ -1,6 +1,6 @@
 // ...existing code...
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Camera, Landmark, MessageCircle, Moon, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, Camera, Landmark, LogOut, MessageCircle, Moon, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { adminRegisterBonusTestDevice, deleteMyAccount, getMe, requestPayoutDetailsChange, setPayoutDetails, submitKycReview, updateProfileContact } from "@/lib/app-api";
@@ -50,6 +50,13 @@ function SettingsPage() {
   const chooseTheme = (preference: ThemePreference) => {
     setThemePreferenceState(preference);
     setThemePreference(preference);
+  };
+
+  const signOut = async () => {
+    await qc.cancelQueries();
+    qc.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", search: { mode: "signin" }, replace: true });
   };
 
   const saveContact = async () => {
@@ -181,6 +188,13 @@ function SettingsPage() {
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Device follows your phone or browser’s current light/dark setting.</p>
+      </section>
+
+      <section className="rounded-lg border bg-background p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="font-medium">Session</h2><p className="mt-1 text-sm text-muted-foreground">Sign out securely from this device.</p></div>
+          <Button type="button" variant="outline" onClick={signOut}><LogOut className="mr-2 h-4 w-4" />Sign out</Button>
+        </div>
       </section>
 
       <section className="rounded-lg border bg-background p-4 shadow-sm">

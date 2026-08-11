@@ -1,6 +1,5 @@
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Button } from "@/components/ui/button";
-import { ArrowDownToLine, ArrowUpFromLine, FileText, ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
 import { useState } from "react";
@@ -22,20 +21,12 @@ export function BalanceCard({
   usdBalance,
   currency,
   onCurrencyChange,
-  onDeposit,
-  onWithdraw,
-  onStatement,
-  accountId,
   tranches,
 }: {
   zarBalance: number;
   usdBalance: number;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
-  onDeposit: () => void;
-  onWithdraw: () => void;
-  onStatement: () => void;
-  accountId: string;
   tranches: Tranche[];
 }) {
   const { data: usdToZar = 18.5 } = useUsdToZarRate();
@@ -156,17 +147,6 @@ export function BalanceCard({
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          <Button onClick={onDeposit} className="h-12 gradient-brand text-white shadow-md">
-            <ArrowDownToLine className="mr-2 h-4 w-4" /> Deposit
-          </Button>
-          <Button onClick={onWithdraw} variant="secondary" className="h-12">
-            <ArrowUpFromLine className="mr-2 h-4 w-4" /> Withdraw
-          </Button>
-          <Button onClick={onStatement} variant="outline" className="h-12">
-            <FileText className="mr-2 h-4 w-4" /> Statement
-          </Button>
-        </div>
       </div>
     </div>
   );

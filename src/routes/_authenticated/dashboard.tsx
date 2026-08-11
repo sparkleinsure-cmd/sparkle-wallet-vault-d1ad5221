@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { type Currency } from "@/lib/currency";
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileUp, Gift, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, FileText, FileUp, Gift, House, Loader2, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -95,7 +95,7 @@ function DashboardPage() {
         : "Apply for appliance cover or open your insurance credit dashboard.";
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-24">
       <AppHeader isAdmin={isAdmin} displayName={displayName} accountId={profile.account_id} />
       <main className="mx-auto max-w-5xl space-y-5 px-3 py-4 sm:px-4 md:px-6 md:py-8">
 
@@ -191,15 +191,11 @@ function DashboardPage() {
           zarBalance={Number(data.wallets.find((w: any) => w.currency === "ZAR")?.balance ?? 0)}
           usdBalance={Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0)}
           currency={currency}
-          accountId={profile.account_id}
           tranches={(data as any).tranches ?? []}
           onCurrencyChange={async (c) => {
             await setCcy({ data: { currency: c } });
             qc.invalidateQueries({ queryKey: ["me"] });
           }}
-          onDeposit={() => setDepOpen(true)}
-          onWithdraw={() => setWOpen(true)}
-          onStatement={() => setSOpen(true)}
         />
         </section>
 
@@ -249,6 +245,33 @@ function DashboardPage() {
         <ReferFriendCard accountId={profile.account_id} />
         </>}
       </main>
+
+      {!isFrozen && (
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/60 bg-background/95 px-2 pb-[max(0.5rem,var(--app-safe-bottom))] pt-2 shadow-[0_-8px_30px_-18px_color-mix(in_oklab,var(--foreground)_45%,transparent)] backdrop-blur-xl" aria-label="Account actions">
+          <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+            <Link to="/dashboard" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-primary" activeProps={{ className: "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl bg-primary/10 text-[10px] font-medium text-primary" }}>
+              <House className="h-4 w-4" />
+              Home
+            </Link>
+            <button type="button" onClick={() => setDepOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-foreground hover:bg-muted/70">
+              <ArrowDownToLine className="h-4 w-4" />
+              Deposit
+            </button>
+            <button type="button" onClick={() => setWOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-foreground hover:bg-muted/70">
+              <ArrowUpFromLine className="h-4 w-4" />
+              Withdraw
+            </button>
+            <button type="button" onClick={() => setSOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-foreground hover:bg-muted/70">
+              <FileText className="h-4 w-4" />
+              Statement
+            </button>
+            <Link to="/settings" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-foreground hover:bg-muted/70">
+              <UserRound className="h-4 w-4" />
+              Profile
+            </Link>
+          </div>
+        </nav>
+      )}
 
       <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />
       <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} withdrawable={withdrawable} bankName={profile.bank_name} accountLast4={profile.bank_account_number ? String(profile.bank_account_number).slice(-4) : null} />
