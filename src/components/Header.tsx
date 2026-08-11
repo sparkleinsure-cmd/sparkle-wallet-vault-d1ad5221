@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Shield } from "lucide-react";
+import { MessageCircle, Shield } from "lucide-react";
 
 export function AppHeader({ isAdmin, displayName, accountId }: { isAdmin: boolean; displayName?: string; accountId?: string }) {
   return (
@@ -15,7 +15,12 @@ export function AppHeader({ isAdmin, displayName, accountId }: { isAdmin: boolea
           </Link>
         ) : <div />}
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-1.5">
+          <Button asChild variant="outline" size="icon" className="h-8 w-8" title="Community">
+            <a href="https://chat.whatsapp.com/HJEOYd4QEQQ9iCpapgC0z3?s=cl&p=a&mlu=0&ilr=0" target="_blank" rel="noopener noreferrer" aria-label="Join the Sparkle Insure WhatsApp community">
+              <MessageCircle className="h-4 w-4" />
+            </a>
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm" className="gap-1.5">
               <Link to="/admin">

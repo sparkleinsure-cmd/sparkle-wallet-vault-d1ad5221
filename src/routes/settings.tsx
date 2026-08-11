@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { getThemePreference, setThemePreference, type ThemePreference } from "@/lib/theme";
+import { AppHeader } from "@/components/Header";
+import { AppBottomNav } from "@/components/AppBottomNav";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -164,6 +166,8 @@ function SettingsPage() {
   };
 
   return (
+    <div className="min-h-screen pb-24">
+      <AppHeader isAdmin={me?.roles?.includes("admin") ?? false} displayName={me?.profile ? `${me.profile.first_name} ${me.profile.surname}`.trim() : undefined} accountId={me?.profile?.account_id} />
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
         <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -349,6 +353,8 @@ function SettingsPage() {
           </button>
         </div>
       </section>
+    </div>
+      <AppBottomNav />
     </div>
   );
 }
