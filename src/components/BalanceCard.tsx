@@ -44,9 +44,12 @@ export function BalanceCard({
   const withdrawableZar = Math.max(0, zarBalance - lockedRemainingZar);
   const withdrawableUsd = Math.max(0, usdBalance - lockedRemainingUsd);
 
-  const total = convertTotal(zarBalance + (growingZar - lockedRemainingZar), usdBalance + (growingUsd - lockedRemainingUsd), usdToZar, currency);
   const withdrawable = convertTotal(withdrawableZar, withdrawableUsd, usdToZar, currency);
-  const locked = convertTotal(growingZar, growingUsd, usdToZar, currency);
+  const growing = convertTotal(growingZar, growingUsd, usdToZar, currency);
+  // Portfolio always includes both liquid funds and the live value of every
+  // still-growing cycle. Keeping this as an explicit sum prevents a wallet
+  // ledger value from masking earned growth or available matured funds.
+  const total = withdrawable + growing;
   const [showCycles, setShowCycles] = useState(false);
   const activeTranches = tranches.filter((t) => Number(t.remaining) > 0).sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -96,7 +99,7 @@ export function BalanceCard({
               <Clock className="h-3 w-3" /> Current (growing)
             </div>
             <div className="mt-1 font-display text-2xl font-bold">
-              {formatMoney(locked, currency)}
+              {formatMoney(growing, currency)}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">Active 30-day cycles</div>
           </div>
