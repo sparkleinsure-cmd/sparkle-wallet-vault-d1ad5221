@@ -165,7 +165,7 @@ function AdminPage() {
         </div>
 
         <Card
-          className="glass-card flex cursor-pointer items-center gap-4 rounded-2xl p-5 transition-colors hover:border-primary/40"
+          className="glass-card flex cursor-pointer flex-wrap items-center gap-3 rounded-2xl p-5 transition-colors hover:border-primary/40"
           role="button"
           tabIndex={0}
           aria-expanded={showUsers}
@@ -178,12 +178,12 @@ function AdminPage() {
           }}
         >
           <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
-          <div className="flex-1">
+          <div className="min-w-32 flex-1">
             <div className="text-sm text-muted-foreground">Total registered users</div>
             <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
           </div>
-          <div className="hidden min-w-32 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:block"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
-          <div className="hidden min-w-32 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:block"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
+          <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
+          <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             {showUsers ? "Hide users" : "View users"}
             {showUsers ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
