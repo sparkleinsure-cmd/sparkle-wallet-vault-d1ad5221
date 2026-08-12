@@ -55,6 +55,7 @@ export const adminListPendingWithdrawals = () => call<any>("adminListPendingWith
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
 export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");
+export const adminGetWalletOverview = () => call<any>("adminGetWalletOverview");
 export const adminListUsers = ({ data }: Input<{ search?: string }>) => call<{ users: any[] }>("adminListUsers", data);
 export const adminSetAccountFrozen = ({ data }: Input<{ userId: string; frozen: boolean; reason?: string; adminNote?: string }>) =>
   call<{ ok: true }>("adminSetAccountFrozen", data);

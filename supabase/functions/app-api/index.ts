@@ -407,6 +407,38 @@ serve(async (req) => {
         return json({ data: { count: result.count ?? 0 } });
       }
 
+      case "adminGetWalletOverview": {
+        await assertAdmin(supabase, userId);
+        const [wallets, tranches] = await Promise.all([
+          admin.from("wallets").select("user_id,currency,balance"),
+          admin.from("deposit_tranches").select("user_id,currency,remaining,current_balance,status,maturity_date").gt("remaining", 0),
+        ]);
+        if (wallets.error) throw new Error(wallets.error.message);
+        if (tranches.error) throw new Error(tranches.error.message);
+        const now = Date.now();
+        const metricsByUser: Record<string, any> = {};
+        const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
+        for (const wallet of wallets.data ?? []) {
+          const metrics = metricsByUser[wallet.user_id] ??= { balances: {}, locked: {}, growing: {} };
+          metrics.balances[wallet.currency] = Number(wallet.balance ?? 0);
+        }
+        for (const tranche of tranches.data ?? []) {
+          if ((tranche.status ?? "locked") !== "locked" || new Date(tranche.maturity_date).getTime() <= now) continue;
+          const metrics = metricsByUser[tranche.user_id] ??= { balances: {}, locked: {}, growing: {} };
+          metrics.locked[tranche.currency] = (metrics.locked[tranche.currency] ?? 0) + Number(tranche.remaining ?? 0);
+          metrics.growing[tranche.currency] = (metrics.growing[tranche.currency] ?? 0) + Number(tranche.current_balance ?? tranche.remaining ?? 0);
+        }
+        for (const metrics of Object.values(metricsByUser) as any[]) {
+          metrics.withdrawable = {};
+          for (const currency of ["ZAR", "USD"]) {
+            metrics.withdrawable[currency] = Math.max(0, Number(metrics.balances[currency] ?? 0) - Number(metrics.locked[currency] ?? 0));
+            totals.withdrawable[currency as "ZAR" | "USD"] += metrics.withdrawable[currency];
+            totals.growing[currency as "ZAR" | "USD"] += Number(metrics.growing[currency] ?? 0);
+          }
+        }
+        return json({ data: { totals, metricsByUser } });
+      }
+
       case "adminListUsers": {
         await assertAdmin(supabase, userId);
         const search = typeof data.search === "string" ? data.search.trim().slice(0, 100) : "";

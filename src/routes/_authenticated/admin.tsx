@@ -16,6 +16,7 @@ import {
   adminSetKycStatus,
   adminGetKycProofUrl,
   adminGetUserCount,
+  adminGetWalletOverview,
   adminListUsers,
   adminSetAccountFrozen,
   adminRejectAccountFreezeDispute,
@@ -79,6 +80,7 @@ function AdminPage() {
     refetchInterval: 30_000,
   });
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin") });
+  const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const [showUsers, setShowUsers] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const { data: registeredUsers, isFetching: usersLoading, refetch: refetchUsers } = useQuery({
@@ -180,6 +182,8 @@ function AdminPage() {
             <div className="text-sm text-muted-foreground">Total registered users</div>
             <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
           </div>
+          <div className="hidden min-w-32 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:block"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
+          <div className="hidden min-w-32 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:block"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             {showUsers ? "Hide users" : "View users"}
             {showUsers ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
@@ -203,7 +207,7 @@ function AdminPage() {
             ) : (
               <div className="space-y-3">
                 {registeredUsers.users.map((user) => (
-                  <RegisteredUserRow key={user.id} user={user} onChanged={() => refetchUsers()} />
+                  <RegisteredUserRow key={user.id} user={user} metrics={walletOverview?.metricsByUser?.[user.id]} onChanged={() => { refetchUsers(); refetchWalletOverview(); }} />
                 ))}
               </div>
             )}
@@ -623,7 +627,12 @@ function downloadWithdrawalPdf(w: any) {
   doc.save(`withdrawal-${p.account_id ?? "user"}-${w.id.slice(0, 8)}.pdf`);
 }
 
-function RegisteredUserRow({ user, onChanged }: { user: any; onChanged: () => void }) {
+function formatBalanceValues(values?: Record<string, number>) {
+  const amounts = CURRENCIES.filter((currency) => Number(values?.[currency] ?? 0) !== 0).map((currency) => formatMoney(Number(values?.[currency] ?? 0), currency));
+  return amounts.length ? amounts.join(" · ") : formatMoney(0, "ZAR");
+}
+
+function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: any; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const [reviewNote, setReviewNote] = useState("");
@@ -689,6 +698,10 @@ function RegisteredUserRow({ user, onChanged }: { user: any; onChanged: () => vo
             <span>{user.phone || "No phone number"}</span>
             <span>Account ID: <span className="font-mono text-foreground">{user.account_id}</span></span>
             <span className="break-all">User ID: <span className="font-mono text-xs text-foreground">{user.id}</span></span>
+          </div>
+          <div className="mt-3 grid max-w-md grid-cols-2 gap-2">
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Withdrawable</div><div className="mt-0.5 text-sm font-semibold text-foreground">{formatBalanceValues(metrics?.withdrawable)}</div></div>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Growing</div><div className="mt-0.5 text-sm font-semibold text-foreground">{formatBalanceValues(metrics?.growing)}</div></div>
           </div>
           {user.account_frozen && user.freeze_reason && (
             <p className="mt-3 text-sm"><span className="font-medium">Freeze reason:</span> {user.freeze_reason}</p>
