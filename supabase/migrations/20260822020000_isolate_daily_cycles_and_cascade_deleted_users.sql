@@ -31,10 +31,10 @@ DECLARE v_user_id uuid; v_currency text; v_status public.tx_status;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     v_user_id := OLD.user_id; v_currency := OLD.currency;
-    v_status := CASE WHEN TG_TABLE_NAME = 'transactions' THEN OLD.status ELSE NULL END;
+    IF TG_TABLE_NAME = 'transactions' THEN v_status := OLD.status; END IF;
   ELSE
     v_user_id := NEW.user_id; v_currency := NEW.currency;
-    v_status := CASE WHEN TG_TABLE_NAME = 'transactions' THEN NEW.status ELSE NULL END;
+    IF TG_TABLE_NAME = 'transactions' THEN v_status := NEW.status; END IF;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = v_user_id) THEN
     IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
