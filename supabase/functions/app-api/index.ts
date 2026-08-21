@@ -409,6 +409,12 @@ serve(async (req) => {
 
       case "adminGetWalletOverview": {
         await assertAdmin(supabase, userId);
+        // A historical auth-user deletion can leave a legacy tranche behind.
+        // It must never be included in an admin headline because it has no
+        // current member card against which the amount can be reconciled.
+        const profiles = await admin.from("profiles").select("id").limit(10_000);
+        if (profiles.error) throw new Error(profiles.error.message);
+        const activeProfileIds = new Set((profiles.data ?? []).map((profile: any) => profile.id));
         const [wallets, tranches] = await Promise.all([
           admin.from("wallets").select("user_id,currency,balance"),
           admin.from("deposit_tranches").select("user_id,currency,remaining,current_balance,status,maturity_date").gt("remaining", 0),
@@ -419,10 +425,12 @@ serve(async (req) => {
         const metricsByUser: Record<string, any> = {};
         const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
         for (const wallet of wallets.data ?? []) {
+          if (!activeProfileIds.has(wallet.user_id)) continue;
           const metrics = metricsByUser[wallet.user_id] ??= { balances: {}, locked: {}, growing: {} };
           metrics.balances[wallet.currency] = Number(wallet.balance ?? 0);
         }
         for (const tranche of tranches.data ?? []) {
+          if (!activeProfileIds.has(tranche.user_id)) continue;
           if ((tranche.status ?? "locked") !== "locked" || new Date(tranche.maturity_date).getTime() <= now) continue;
           const metrics = metricsByUser[tranche.user_id] ??= { balances: {}, locked: {}, growing: {} };
           metrics.locked[tranche.currency] = (metrics.locked[tranche.currency] ?? 0) + Number(tranche.remaining ?? 0);
