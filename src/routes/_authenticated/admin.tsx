@@ -39,7 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -144,6 +144,9 @@ function AdminPage() {
     <div className="min-h-screen">
       <AppHeader isAdmin />
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-10">
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate({ to: "/dashboard" })}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to dashboard
+        </Button>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-3xl font-bold">Admin Console</h1>
