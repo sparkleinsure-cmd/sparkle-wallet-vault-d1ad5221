@@ -13,7 +13,7 @@ import { Loader2, Copy, Upload } from "lucide-react";
 
 const BANK = {
   name: "FNB (First National Bank)",
-  account: "6264854525",
+  account: "63224867101",
   branch: "250655",
 };
 
