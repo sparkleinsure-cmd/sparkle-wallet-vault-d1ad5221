@@ -221,13 +221,13 @@ function DashboardPage() {
               <Gift className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
                 <div className="font-semibold">Claim your R10 welcome bonus</div>
-                <p className="text-sm text-muted-foreground">Update your banking details and take a selfie. Your bonus is added to your growing account after admin approval.</p>
+                <p className="text-sm text-muted-foreground">Take a selfie or attach a clear photo. Your bonus is added to your growing account after admin approval.</p>
                 <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-300">
                   Helping someone register? Please use the account owner&apos;s own phone and browser. Welcome bonuses are limited per device, so using your phone may make their account appear to have already claimed.
                 </p>
               </div>
             </div>
-            <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/settings" hash="verification">Complete setup</Link></Button>
+            <Button asChild className="shrink-0 gradient-brand text-white"><Link to="/settings" hash="welcome-bonus">Claim bonus</Link></Button>
           </div>
         )}
 

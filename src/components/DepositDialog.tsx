@@ -14,7 +14,7 @@ import { Loader2, Copy, Upload } from "lucide-react";
 const BANK = {
   name: "FNB (First National Bank)",
   account: "63224867101",
-  branch: "250655",
+  branch: "250205",
 };
 
 export function DepositDialog({

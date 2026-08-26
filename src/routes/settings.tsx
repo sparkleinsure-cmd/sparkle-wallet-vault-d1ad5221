@@ -69,7 +69,6 @@ function SettingsPage() {
   };
 
   const submitKyc = async () => {
-    if (!hasBankDetails) return toast.error("Save your banking details before submitting your selfie.");
     if (!selfie) return toast.error("Take or choose a clear selfie first.");
     if (selfie.size > 8 * 1024 * 1024) return toast.error("Your selfie must be under 8MB.");
     setIsSubmittingKyc(true);
@@ -263,7 +262,7 @@ function SettingsPage() {
         </section>
       )}
 
-      <section className="rounded-lg border bg-background p-4 shadow-sm">
+      <section id="welcome-bonus" className="scroll-mt-4 rounded-lg border bg-background p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-primary" />
           <h2 className="font-medium">Welcome bonus</h2>

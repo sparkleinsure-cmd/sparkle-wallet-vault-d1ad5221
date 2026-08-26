@@ -238,16 +238,16 @@ function AdminPage() {
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
             <Bell className="mr-2 h-4 w-4 text-primary" />
-            Pending KYC reviews
+            Pending welcome bonus reviews
             {pendingKyc?.reviews.length ? (
               <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
                 {pendingKyc.reviews.length}
               </span>
             ) : null}
           </h2>
-          <p className="mb-4 text-sm text-muted-foreground">Review the banking confirmation and selfie before enabling withdrawals.</p>
+          <p className="mb-4 text-sm text-muted-foreground">Preview the submitted selfie or photo before approving the R10 welcome bonus.</p>
           {!pendingKyc?.reviews.length ? (
-            <p className="text-sm text-muted-foreground">No KYC documents are waiting for review.</p>
+            <p className="text-sm text-muted-foreground">No welcome bonus photos are waiting for review.</p>
           ) : (
             <div className="space-y-3">
               {pendingKyc.reviews.map((review: any) => (
@@ -884,17 +884,14 @@ function PendingKycRow({
         <div className="text-xs text-muted-foreground">Submitted for review</div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {review.proof_url && <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.proof_url)}>
-          <FileDown className="mr-2 h-4 w-4" /> Open banking confirmation
-        </Button>}
         <Button size="sm" variant="outline" onClick={() => onOpenDocument(review.selfie_url)}>
-          <FileDown className="mr-2 h-4 w-4" /> Open selfie
+          <FileDown className="mr-2 h-4 w-4" /> Open selfie or photo
         </Button>
         <Button size="sm" className="gradient-brand text-white" disabled={busy !== null} onClick={() => reviewKyc("verified")}>
           {busy === "verified" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Approve & credit R10
         </Button>
         <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => reviewKyc("rejected")}>
-          {busy === "rejected" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Decline KYC
+          {busy === "rejected" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Decline
         </Button>
       </div>
     </div>
