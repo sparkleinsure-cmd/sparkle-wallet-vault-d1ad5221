@@ -30,6 +30,7 @@ export const requestPayoutDetailsChange = () => call<{ availableAt: string }>("r
 export const updateProfileContact = ({ data }: Input<{ phone: string; streetAddress: string; province: string; postalCode: string }>) => call<{ ok: true }>("updateProfileContact", data);
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
+export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string }>) => call<{ ok: true; amount: number; currency: string; maturityDate: string; transactionId: string }>("moveWithdrawableToGrowing", data);
 export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfiePath: string }>) =>
   call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");

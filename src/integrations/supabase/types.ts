@@ -234,12 +234,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      move_withdrawable_to_growing_secure: {
+        Args: { p_amount: number; p_currency: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
       kyc_status: "pending" | "verified" | "rejected"
       tx_status: "pending" | "completed" | "failed" | "declined"
-      tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment" | "fee"
+      tx_type: "deposit" | "withdrawal" | "bonus" | "adjustment" | "fee" | "transfer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -370,7 +374,7 @@ export const Constants = {
       app_role: ["admin", "user"],
       kyc_status: ["pending", "verified", "rejected"],
       tx_status: ["pending", "completed", "failed", "declined"],
-      tx_type: ["deposit", "withdrawal", "bonus", "adjustment", "fee"],
+      tx_type: ["deposit", "withdrawal", "bonus", "adjustment", "fee", "transfer"],
     },
   },
 } as const

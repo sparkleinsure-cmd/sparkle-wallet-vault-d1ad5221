@@ -348,6 +348,17 @@ serve(async (req) => {
         return json({ data: { ok: true, grossAmount: amount, penalty, payoutAmount } });
       }
 
+      case "moveWithdrawableToGrowing": {
+        const amount = requireAmount(data.amount);
+        const currency = requireCurrency(data.currency);
+        const moved = await supabase.rpc("move_withdrawable_to_growing_secure", {
+          p_amount: amount,
+          p_currency: currency,
+        });
+        if (moved.error) throw new Error(moved.error.message);
+        return json({ data: moved.data });
+      }
+
       case "submitKycReview": {
         const bankProofPath = typeof data.bankProofPath === "string" ? requireString(data.bankProofPath, "banking proof", 3, 500) : null;
         const selfiePath = requireString(data.selfiePath, "selfie", 3, 500);

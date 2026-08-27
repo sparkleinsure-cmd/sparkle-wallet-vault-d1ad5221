@@ -7,6 +7,7 @@ import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionsTable } from "@/components/TransactionsTable";
 import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
+import { GrowFundsDialog } from "@/components/GrowFundsDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { AccountHealthCard } from "@/components/AccountHealthCard";
 import { ReferFriendCard } from "@/components/ReferFriendCard";
@@ -45,6 +46,7 @@ function DashboardPage() {
 
   const [depOpen, setDepOpen] = useState(false);
   const [wOpen, setWOpen] = useState(false);
+  const [growOpen, setGrowOpen] = useState(false);
   const [sOpen, setSOpen] = useState(false);
   const [disputePdf, setDisputePdf] = useState<File | null>(null);
   const [disputeStatement, setDisputeStatement] = useState("");
@@ -192,6 +194,8 @@ function DashboardPage() {
           usdBalance={Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0)}
           currency={currency}
           tranches={(data as any).tranches ?? []}
+          onMoveToGrowing={() => setGrowOpen(true)}
+          moveToGrowingDisabled={withdrawable <= 0}
           onCurrencyChange={async (c) => {
             await setCcy({ data: { currency: c } });
             qc.invalidateQueries({ queryKey: ["me"] });
@@ -275,6 +279,7 @@ function DashboardPage() {
 
       <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />
       <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} withdrawable={withdrawable} bankName={profile.bank_name} accountLast4={profile.bank_account_number ? String(profile.bank_account_number).slice(-4) : null} />
+      <GrowFundsDialog open={growOpen} onOpenChange={setGrowOpen} currency={currency} withdrawable={withdrawable} />
       <StatementDialog
         open={sOpen}
         onOpenChange={setSOpen}

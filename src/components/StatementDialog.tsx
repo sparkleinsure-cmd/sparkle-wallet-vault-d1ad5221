@@ -24,6 +24,7 @@ type Tx = {
 
 const isDebit = (transaction: Tx) => transaction.type === "withdrawal" || transaction.type === "fee" || Number(transaction.amount) < 0;
 const signedAmount = (transaction: Tx) => {
+  if (transaction.type === "transfer") return formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency);
   const sign = isDebit(transaction) ? "-" : "+";
   return `${sign}${formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency)}`;
 };

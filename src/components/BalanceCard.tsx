@@ -1,6 +1,7 @@
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
 import { useState } from "react";
 
@@ -22,12 +23,16 @@ export function BalanceCard({
   currency,
   onCurrencyChange,
   tranches,
+  onMoveToGrowing,
+  moveToGrowingDisabled = false,
 }: {
   zarBalance: number;
   usdBalance: number;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
   tranches: Tranche[];
+  onMoveToGrowing: () => void;
+  moveToGrowingDisabled?: boolean;
 }) {
   const { data: usdToZar = 18.5 } = useUsdToZarRate();
   const now = Date.now();
@@ -51,7 +56,7 @@ export function BalanceCard({
   // ledger value from masking earned growth or available matured funds.
   const total = withdrawable + growing;
   const [showCycles, setShowCycles] = useState(false);
-  const activeTranches = tranches.filter((t) => Number(t.remaining) > 0).sort(
+  const activeTranches = tranches.filter((t) => isLocked(t) && Number(t.remaining) > 0).sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
 
@@ -93,6 +98,16 @@ export function BalanceCard({
               {formatMoney(withdrawable, currency)}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">Matured funds + instant bonuses</div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full bg-background/60"
+              onClick={onMoveToGrowing}
+              disabled={moveToGrowingDisabled}
+            >
+              Move to growing <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           </div>
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
             <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-amber-700 dark:text-amber-300">
@@ -138,7 +153,7 @@ export function BalanceCard({
                       )}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      {t.source === "bonus" ? "Bonus" : "Deposit"} · {new Date(t.created_at).toLocaleDateString()}
+                      {t.source === "transfer" ? "Moved to growing" : t.source === "referral" ? "Referral reward" : t.source === "bonus" ? "Bonus" : "Deposit"} · {new Date(t.created_at).toLocaleDateString()}
                     </div>
                   </div>
                   <div className={`text-xs font-medium ${matured ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
