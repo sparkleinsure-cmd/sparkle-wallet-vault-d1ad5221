@@ -65,10 +65,10 @@ export function BalanceCard({
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full gradient-brand opacity-30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full gradient-accent opacity-20 blur-3xl" />
       <div className="relative">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Portfolio</div>
-            <div className="mt-1 font-display text-3xl font-bold md:text-4xl">
+            <div className="mt-1 whitespace-nowrap font-display text-[clamp(1.625rem,7vw,2.25rem)] font-bold leading-tight tracking-[-0.035em] tabular-nums">
               {formatMoney(total, currency)}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
@@ -76,7 +76,7 @@ export function BalanceCard({
             </div>
           </div>
           <Select value={currency} onValueChange={(v) => onCurrencyChange(v as Currency)}>
-            <SelectTrigger className="w-28 bg-background/70">
+            <SelectTrigger className="w-28 shrink-0 bg-background/70">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -94,7 +94,7 @@ export function BalanceCard({
             <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-3 w-3" /> Withdrawable
             </div>
-            <div className="mt-1 font-display text-2xl font-bold">
+            <div className="mt-1 whitespace-nowrap font-display text-[clamp(1rem,5vw,1.25rem)] font-bold leading-tight tracking-[-0.035em] tabular-nums">
               {formatMoney(withdrawable, currency)}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">Matured funds + instant bonuses</div>
@@ -113,7 +113,7 @@ export function BalanceCard({
             <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-amber-700 dark:text-amber-300">
               <Clock className="h-3 w-3" /> Current (growing)
             </div>
-            <div className="mt-1 font-display text-2xl font-bold">
+            <div className="mt-1 whitespace-nowrap font-display text-[clamp(1rem,5vw,1.25rem)] font-bold leading-tight tracking-[-0.035em] tabular-nums">
               {formatMoney(growing, currency)}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">Active 30-day cycles</div>
