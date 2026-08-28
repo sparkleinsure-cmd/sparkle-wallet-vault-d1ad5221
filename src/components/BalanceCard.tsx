@@ -62,8 +62,7 @@ export function BalanceCard({
 
   return (
     <div className="glass-card relative overflow-hidden rounded-3xl p-5 md:p-8">
-      <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full gradient-brand opacity-30 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full gradient-accent opacity-20 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-amber-500/10" />
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
