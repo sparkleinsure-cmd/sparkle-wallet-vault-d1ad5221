@@ -100,11 +100,14 @@ export function BalanceCard({
               type="button"
               variant="outline"
               size="sm"
-              className="mt-3 w-full bg-background/60"
+              className="mt-3 w-full justify-between gap-1 bg-background/60 px-2.5"
               onClick={onMoveToGrowing}
               disabled={moveToGrowingDisabled}
+              aria-label="Move withdrawable funds to growing balance"
             >
-              Move to growing <ArrowRight className="h-3.5 w-3.5" />
+              <span className="sm:hidden">Grow funds</span>
+              <span className="hidden sm:inline">Move to growing</span>
+              <ArrowRight className="shrink-0" />
             </Button>
           </div>
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
