@@ -61,8 +61,7 @@ export function BalanceCard({
   );
 
   return (
-    <div className="glass-card relative overflow-hidden rounded-3xl p-5 md:p-8">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-amber-500/10" />
+    <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card p-5 shadow-[var(--shadow-glass)] md:p-8">
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
