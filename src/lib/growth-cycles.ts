@@ -38,7 +38,7 @@ export const GROWTH_CYCLES: GrowthCycle[] = [
     termDays: 180,
     minAmount: 10_000,
     maxAmount: 19_000,
-    maturityMultiplier: 7,
+    maturityMultiplier: 4.6,
   },
   {
     code: "360d",
@@ -47,7 +47,7 @@ export const GROWTH_CYCLES: GrowthCycle[] = [
     termDays: 360,
     minAmount: 20_000,
     maxAmount: 100_000,
-    maturityMultiplier: 21,
+    maturityMultiplier: 10.6,
   },
 ];
 

@@ -20,8 +20,8 @@ INSERT INTO public.growth_cycle_products (
   ('legacy_30d', '30 Days (legacy)', 30, 0.01, 10000000, 0.01, 0.30, 0, false),
   ('15d',  '15 Days',   15, 100,   900,    0.20 / 15,  0.20, 10, true),
   ('30d',  '1 Month',   30, 1000,  9000,   0.40 / 30,  0.40, 20, true),
-  ('180d', '6 Months', 180, 10000, 19000,  6.00 / 180, 6.00, 30, true),
-  ('360d', '12 Months',360, 20000, 100000, 20.00 / 360,20.00, 40, true)
+  ('180d', '6 Months', 180, 10000, 19000,  3.60 / 180, 3.60, 30, true),
+  ('360d', '12 Months',360, 20000, 100000,  9.60 / 360,9.60, 40, true)
 ON CONFLICT (code) DO UPDATE SET
   label = EXCLUDED.label,
   term_days = EXCLUDED.term_days,
