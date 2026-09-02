@@ -17,6 +17,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import { applyTheme, getThemePreference } from "@/lib/theme";
+import { recordPresence } from "@/lib/app-api";
 
 function NotFoundComponent() {
   return (
@@ -200,6 +201,29 @@ function RootComponent() {
     });
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  useEffect(() => {
+    const updatePresence = async () => {
+      if (document.visibilityState !== "visible") return;
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      await recordPresence().catch(() => undefined);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void updatePresence();
+    };
+
+    void updatePresence();
+    const heartbeat = window.setInterval(() => void updatePresence(), 60_000);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", updatePresence);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", updatePresence);
+    };
+  }, []);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;

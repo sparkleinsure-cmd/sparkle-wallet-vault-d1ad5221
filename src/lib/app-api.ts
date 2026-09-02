@@ -22,6 +22,7 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
 export const getMe = () => call<any>("getMe", {
   installationId: typeof window === "undefined" ? null : getSignupDeviceContext().installationId,
 });
+export const recordPresence = () => call<{ ok: true }>("recordPresence");
 export const getAccountHealth = () => call<any>("getAccountHealth");
 export const getStatementTransactions = ({ data }: Input<{ days: number }>) => call<any[]>("getStatementTransactions", data);
 export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => call<{ ok: true }>("setPrimaryCurrency", data);
@@ -55,7 +56,7 @@ export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: str
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
-export const adminGetUserCount = () => call<{ count: number }>("adminGetUserCount");
+export const adminGetUserCount = () => call<{ count: number; onlineCount: number }>("adminGetUserCount");
 export const adminGetWalletOverview = () => call<any>("adminGetWalletOverview");
 export const adminListUsers = ({ data }: Input<{ search?: string }>) => call<{ users: any[] }>("adminListUsers", data);
 export const adminSetAccountFrozen = ({ data }: Input<{ userId: string; frozen: boolean; reason?: string; adminNote?: string }>) =>

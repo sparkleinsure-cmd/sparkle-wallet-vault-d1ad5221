@@ -40,8 +40,7 @@ export function BalanceCard({
   // Locked (still-running) tranches: use remaining for withdrawable math,
   // and current_balance (initial + daily incentives) for the growing display.
   const isLocked = (t: Tranche) =>
-    (t.status ?? (new Date(t.maturity_date).getTime() > now ? "locked" : "matured")) === "locked" &&
-    new Date(t.maturity_date).getTime() > now;
+    (t.status ?? (new Date(t.maturity_date).getTime() > now ? "locked" : "matured")) === "locked";
   const lockedRemainingZar = tranches.filter((t) => t.currency === "ZAR" && isLocked(t)).reduce((s, t) => s + Number(t.remaining), 0);
   const lockedRemainingUsd = tranches.filter((t) => t.currency === "USD" && isLocked(t)).reduce((s, t) => s + Number(t.remaining), 0);
   const growingZar = tranches.filter((t) => t.currency === "ZAR" && isLocked(t)).reduce((s, t) => s + Number(t.current_balance ?? t.remaining), 0);

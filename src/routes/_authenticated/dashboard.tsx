@@ -83,7 +83,7 @@ function DashboardPage() {
   const isAdmin = data.roles.includes("admin");
   const tranches = ((data as any).tranches ?? []) as Array<{ currency: string; remaining: number; maturity_date: string; status?: string }>;
   const lockedInCurrency = tranches
-    .filter((t) => t.currency === currency && (t.status ?? "locked") === "locked" && new Date(t.maturity_date).getTime() > Date.now())
+    .filter((t) => t.currency === currency && (t.status ?? "locked") === "locked")
     .reduce((s, t) => s + Number(t.remaining), 0);
   const withdrawable = Math.max(0, balance - lockedInCurrency);
   const hasInsuranceApplication = Boolean(insurance?.application);

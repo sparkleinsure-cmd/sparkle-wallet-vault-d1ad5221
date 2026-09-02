@@ -86,7 +86,7 @@ serve(async (req) => {
     const action = typeof body?.action === "string" ? body.action : "";
     const data = body?.data ?? {};
 
-    if (!action.startsWith("admin") && !["getMe", "submitAccountFreezeDispute", "deleteMyAccount"].includes(action)) {
+    if (!action.startsWith("admin") && !["getMe", "recordPresence", "submitAccountFreezeDispute", "deleteMyAccount"].includes(action)) {
       const freeze = await admin.from("profiles").select("account_frozen").eq("id", userId).maybeSingle();
       if (freeze.error) throw new Error(freeze.error.message);
       if (freeze.data?.account_frozen) {
@@ -100,6 +100,8 @@ serve(async (req) => {
           ? data.installationId
           : null;
         const currentInstallationHash = installationId ? await sha256(installationId) : null;
+        const maturity = await admin.rpc("settle_due_tranches_for_user", { p_user_id: userId });
+        if (maturity.error) throw new Error(maturity.error.message);
         const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
         const clientIp = req.headers.get("cf-connecting-ip") ?? forwardedFor;
         if (clientIp) {
@@ -166,6 +168,15 @@ serve(async (req) => {
           welcome_bonus_test_device: Boolean(currentInstallationHash && exemptInstallationHashes.has(currentInstallationHash)),
         } : null;
         return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [], accountFreezeDisputes: disputesRes.data ?? [] } });
+      }
+
+      case "recordPresence": {
+        const result = await admin.from("user_presence").upsert(
+          { user_id: userId, last_seen_at: new Date().toISOString() },
+          { onConflict: "user_id" },
+        );
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
       }
 
       case "submitAccountFreezeDispute": {
@@ -413,9 +424,14 @@ serve(async (req) => {
 
       case "adminGetUserCount": {
         await assertAdmin(supabase, userId);
-        const result = await admin.from("profiles").select("id", { count: "exact", head: true });
-        if (result.error) throw new Error(result.error.message);
-        return json({ data: { count: result.count ?? 0 } });
+        const onlineSince = new Date(Date.now() - 2 * 60_000).toISOString();
+        const [total, online] = await Promise.all([
+          admin.from("profiles").select("id", { count: "exact", head: true }),
+          admin.from("user_presence").select("user_id", { count: "exact", head: true }).gte("last_seen_at", onlineSince),
+        ]);
+        if (total.error) throw new Error(total.error.message);
+        if (online.error) throw new Error(online.error.message);
+        return json({ data: { count: total.count ?? 0, onlineCount: online.count ?? 0 } });
       }
 
       case "adminGetWalletOverview": {
@@ -432,7 +448,6 @@ serve(async (req) => {
         ]);
         if (wallets.error) throw new Error(wallets.error.message);
         if (tranches.error) throw new Error(tranches.error.message);
-        const now = Date.now();
         const metricsByUser: Record<string, any> = {};
         const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
         for (const wallet of wallets.data ?? []) {
@@ -442,7 +457,7 @@ serve(async (req) => {
         }
         for (const tranche of tranches.data ?? []) {
           if (!activeProfileIds.has(tranche.user_id)) continue;
-          if ((tranche.status ?? "locked") !== "locked" || new Date(tranche.maturity_date).getTime() <= now) continue;
+          if ((tranche.status ?? "locked") !== "locked") continue;
           const metrics = metricsByUser[tranche.user_id] ??= { balances: {}, locked: {}, growing: {} };
           metrics.locked[tranche.currency] = (metrics.locked[tranche.currency] ?? 0) + Number(tranche.remaining ?? 0);
           metrics.growing[tranche.currency] = (metrics.growing[tranche.currency] ?? 0) + Number(tranche.current_balance ?? tranche.remaining ?? 0);
@@ -473,15 +488,31 @@ serve(async (req) => {
         const users = await query;
         if (users.error) throw new Error(users.error.message);
         const ids = (users.data ?? []).map((profile: any) => profile.id);
-        const disputes = ids.length
-          ? await admin.from("account_freeze_disputes").select("*").in("user_id", ids).order("created_at", { ascending: false })
-          : { data: [], error: null };
+        const [disputes, presence] = ids.length
+          ? await Promise.all([
+              admin.from("account_freeze_disputes").select("*").in("user_id", ids).order("created_at", { ascending: false }),
+              admin.from("user_presence").select("user_id,last_seen_at").in("user_id", ids),
+            ])
+          : [{ data: [], error: null }, { data: [], error: null }];
         if (disputes.error) throw new Error(disputes.error.message);
+        if (presence.error) throw new Error(presence.error.message);
         const latestByUser: Record<string, any> = {};
         for (const dispute of disputes.data ?? []) {
           if (!latestByUser[dispute.user_id]) latestByUser[dispute.user_id] = dispute;
         }
-        return json({ data: { users: (users.data ?? []).map((profile: any) => ({ ...profile, latest_dispute: latestByUser[profile.id] ?? null })) } });
+        const lastSeenByUser = Object.fromEntries(
+          (presence.data ?? []).map((entry: any) => [entry.user_id, entry.last_seen_at]),
+        );
+        const onlineCutoff = Date.now() - 2 * 60_000;
+        return json({ data: { users: (users.data ?? []).map((profile: any) => {
+          const lastSeenAt = lastSeenByUser[profile.id] ?? null;
+          return {
+            ...profile,
+            latest_dispute: latestByUser[profile.id] ?? null,
+            last_seen_at: lastSeenAt,
+            is_online: Boolean(lastSeenAt && new Date(lastSeenAt).getTime() >= onlineCutoff),
+          };
+        }) } });
       }
 
       case "adminSetAccountFrozen": {

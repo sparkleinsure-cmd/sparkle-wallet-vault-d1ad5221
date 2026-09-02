@@ -79,7 +79,7 @@ function AdminPage() {
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
-  const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin") });
+  const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const [showUsers, setShowUsers] = useState(false);
   const [userSearch, setUserSearch] = useState("");
@@ -87,6 +87,7 @@ function AdminPage() {
     queryKey: ["admin-users", userSearch],
     queryFn: () => adminListUsers({ data: { search: userSearch } }),
     enabled: showUsers && !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
   });
   const { data: insuranceApplications, refetch: refetchInsuranceApplications } = useQuery({ queryKey: ["admin-insurance-applications"], queryFn: adminListInsuranceApplications, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: insuranceClaims, refetch: refetchInsuranceClaims } = useQuery({ queryKey: ["admin-insurance-claims"], queryFn: adminListInsuranceClaims, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
@@ -184,6 +185,9 @@ function AdminPage() {
           <div className="min-w-32 flex-1">
             <div className="text-sm text-muted-foreground">Total registered users</div>
             <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
+            <div className="mt-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              ({userCount?.onlineCount ?? 0} {(userCount?.onlineCount ?? 0) === 1 ? "user" : "users"} online)
+            </div>
           </div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
@@ -635,6 +639,13 @@ function formatBalanceValues(values?: Record<string, number>) {
   return amounts.length ? amounts.join(" · ") : formatMoney(0, "ZAR");
 }
 
+function formatLastSeen(value?: string | null) {
+  if (!value) return "No activity recorded";
+  const lastSeen = new Date(value);
+  if (Number.isNaN(lastSeen.getTime())) return "Unavailable";
+  return lastSeen.toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" });
+}
+
 function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: any; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
@@ -701,6 +712,10 @@ function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: 
             <span>{user.phone || "No phone number"}</span>
             <span>Account ID: <span className="font-mono text-foreground">{user.account_id}</span></span>
             <span className="break-all">User ID: <span className="font-mono text-xs text-foreground">{user.id}</span></span>
+            <span className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${user.is_online ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              Last seen: {formatLastSeen(user.last_seen_at)}
+            </span>
           </div>
           <div className="mt-3 grid max-w-md grid-cols-2 gap-2">
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Withdrawable</div><div className="mt-0.5 text-sm font-semibold text-foreground">{formatBalanceValues(metrics?.withdrawable)}</div></div>
