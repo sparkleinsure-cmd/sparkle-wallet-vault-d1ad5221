@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
+import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
 import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
@@ -420,9 +421,9 @@ function AdminPage() {
                       window.open(url, "_blank");
                     } catch (e: any) { toast.error(e.message); }
                   }}
-                  onVerify={async (correctedAmount: number | undefined, note: string | undefined) => {
+                  onVerify={async (correctedAmount: number | undefined, note: string | undefined, cycleCode: GrowthCycleCode | undefined) => {
                     try {
-                      await verifyDep({ data: { txId: d.id, correctedAmount, note } });
+                      await verifyDep({ data: { txId: d.id, correctedAmount, note, cycleCode } });
                       toast.success("Deposit verified");
                       refetchPending();
                     } catch (e: any) { toast.error(e.message); }
@@ -955,10 +956,16 @@ function PendingDepositRow({
 }: {
   deposit: any;
   onDownload: () => void;
-  onVerify: (correctedAmount: number | undefined, note: string | undefined) => void;
+  onVerify: (correctedAmount: number | undefined, note: string | undefined, cycleCode: GrowthCycleCode | undefined) => Promise<void>;
   onDecline: (reason: string | undefined) => void;
 }) {
   const [corrected, setCorrected] = useState<string>("");
+  const originalCycleCode = GROWTH_CYCLES.some((cycle) => cycle.code === deposit.growth_cycle_code)
+    ? (deposit.growth_cycle_code as GrowthCycleCode)
+    : undefined;
+  const [selectedCycleCode, setSelectedCycleCode] = useState<GrowthCycleCode | "legacy_30d">(
+    originalCycleCode ?? "legacy_30d",
+  );
   const [note, setNote] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [declining, setDeclining] = useState(false);
@@ -978,16 +985,33 @@ function PendingDepositRow({
             {formatMoney(Number(deposit.amount), deposit.currency as Currency)}
             <span className="ml-2 text-xs font-normal text-muted-foreground">(user-declared)</span>
           </div>
+          <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+            Member selected: {GROWTH_CYCLES.find((cycle) => cycle.code === originalCycleCode)?.label ?? "Legacy 30 Days"}
+          </div>
         </div>
         <Button variant="outline" size="sm" onClick={onDownload}>
           <FileDown className="mr-2 h-4 w-4" /> Download proof
         </Button>
       </div>
 
-      <div className="mt-3 grid gap-2 md:grid-cols-[160px_1fr_auto]">
+      <div className="mt-3 grid gap-2 md:grid-cols-[160px_180px_1fr_auto]">
         <div>
           <Label className="text-xs">Corrected amount (optional)</Label>
           <Input type="number" step="0.01" min="0" placeholder={String(deposit.amount)} value={corrected} onChange={(e) => setCorrected(e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-xs">Allocate to cycle</Label>
+          <Select value={selectedCycleCode} onValueChange={(value) => setSelectedCycleCode(value as GrowthCycleCode | "legacy_30d")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {!originalCycleCode && <SelectItem value="legacy_30d">Legacy 30 Days</SelectItem>}
+              {GROWTH_CYCLES.map((cycle) => (
+                <SelectItem key={cycle.code} value={cycle.code}>
+                  {cycle.label} · {formatMoney(cycle.minAmount, "ZAR")}–{formatMoney(cycle.maxAmount, "ZAR")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label className="text-xs">Note / Decline reason</Label>
@@ -1002,7 +1026,13 @@ function PendingDepositRow({
               setBusy(true);
               const c = corrected.trim() ? Number(corrected) : undefined;
               if (c !== undefined && (!isFinite(c) || c <= 0)) { toast.error("Invalid amount"); setBusy(false); return; }
-              await onVerify(c, note.trim() || undefined);
+              const verifiedAmount = c ?? Number(deposit.amount);
+              if (selectedCycleCode !== "legacy_30d") {
+                const selectedCycle = GROWTH_CYCLES.find((cycle) => cycle.code === selectedCycleCode);
+                const validationError = selectedCycle ? validateCycleAmount(verifiedAmount, selectedCycle) : "Select a valid cycle";
+                if (validationError) { toast.error(validationError); setBusy(false); return; }
+              }
+              await onVerify(c, note.trim() || undefined, selectedCycleCode === "legacy_30d" ? undefined : selectedCycleCode);
               setBusy(false);
             }}
           >

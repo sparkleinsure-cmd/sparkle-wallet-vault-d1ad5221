@@ -29,9 +29,9 @@ export const setPrimaryCurrency = ({ data }: Input<{ currency: string }>) => cal
 export const setPayoutDetails = ({ data }: Input<{ bankName: string; accountNumber: string }>) => call<{ ok: true }>("setPayoutDetails", data);
 export const requestPayoutDetailsChange = () => call<{ availableAt: string }>("requestPayoutDetailsChange");
 export const updateProfileContact = ({ data }: Input<{ phone: string; streetAddress: string; province: string; postalCode: string }>) => call<{ ok: true }>("updateProfileContact", data);
-export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
+export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<any>("requestWithdrawal", data);
-export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<{ ok: true; amount: number; currency: string; maturityDate: string; transactionId: string }>("moveWithdrawableToGrowing", data);
+export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; requestId: string }>) => call<{ ok: true; amount: number; currency: string; cycleCode: string; cycleLabel: string; maturityDate: string; expectedAmount: number; transactionId: string }>("moveWithdrawableToGrowing", data);
 export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfiePath: string }>) =>
   call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
@@ -51,7 +51,7 @@ export const adminListPendingKyc = () => call<any>("adminListPendingKyc");
 export const adminListPendingDeposits = () => call<any>("adminListPendingDeposits");
 export const adminGetProofUrl = ({ data }: Input<{ path: string }>) => call<any>("adminGetProofUrl", data);
 export const adminGetKycProofUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetKycProofUrl", data);
-export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmount?: number; note?: string }>) => call<any>("adminVerifyDeposit", data);
+export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmount?: number; note?: string; cycleCode?: string }>) => call<any>("adminVerifyDeposit", data);
 export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: string }>) => call<any>("adminDeclineDeposit", data);
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);

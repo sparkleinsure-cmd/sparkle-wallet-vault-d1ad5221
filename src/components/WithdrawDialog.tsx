@@ -86,7 +86,7 @@ export function WithdrawDialog({
               e.preventDefault();
               const amt = Number(amount);
               if (!isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount");
-              if (amt > withdrawable) return toast.error("Only matured funds are withdrawable. Locked 30-day cycles cannot be withdrawn early.");
+              if (amt > withdrawable) return toast.error("Only matured funds are withdrawable. Locked growth cycles cannot be withdrawn early.");
               await submit();
             }}
           >

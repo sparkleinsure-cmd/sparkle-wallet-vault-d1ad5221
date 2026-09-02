@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as CyclePreviewRouteImport } from './routes/cycle-preview'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AccountDeletionRouteImport } from './routes/account-deletion'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -29,6 +30,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CyclePreviewRoute = CyclePreviewRouteImport.update({
+  id: '/cycle-preview',
+  path: '/cycle-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account-deletion': typeof AccountDeletionRoute
   '/auth': typeof AuthRoute
+  '/cycle-preview': typeof CyclePreviewRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account-deletion': typeof AccountDeletionRoute
   '/auth': typeof AuthRoute
+  '/cycle-preview': typeof CyclePreviewRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/account-deletion': typeof AccountDeletionRoute
   '/auth': typeof AuthRoute
+  '/cycle-preview': typeof CyclePreviewRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account-deletion'
     | '/auth'
+    | '/cycle-preview'
     | '/settings'
     | '/sitemap.xml'
     | '/admin'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account-deletion'
     | '/auth'
+    | '/cycle-preview'
     | '/settings'
     | '/sitemap.xml'
     | '/admin'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/account-deletion'
     | '/auth'
+    | '/cycle-preview'
     | '/settings'
     | '/sitemap.xml'
     | '/_authenticated/admin'
@@ -159,6 +171,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AccountDeletionRoute: typeof AccountDeletionRoute
   AuthRoute: typeof AuthRoute
+  CyclePreviewRoute: typeof CyclePreviewRoute
   SettingsRoute: typeof SettingsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cycle-preview': {
+      id: '/cycle-preview'
+      path: '/cycle-preview'
+      fullPath: '/cycle-preview'
+      preLoaderRoute: typeof CyclePreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -268,6 +288,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AccountDeletionRoute: AccountDeletionRoute,
   AuthRoute: AuthRoute,
+  CyclePreviewRoute: CyclePreviewRoute,
   SettingsRoute: SettingsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   AuthCallbackRoute: AuthCallbackRoute,

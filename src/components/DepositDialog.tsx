@@ -1,15 +1,30 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Copy, Loader2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CURRENCIES, CURRENCY_META, type Currency } from "@/lib/currency";
-import { useRef, useState } from "react";
-import { toast } from "sonner";
-import { creditDeposit } from "@/lib/app-api";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Copy, Upload } from "lucide-react";
+import { creditDeposit } from "@/lib/app-api";
+import { formatMoney } from "@/lib/currency";
+import {
+  estimatedMaturityDate,
+  expectedCycleAmount,
+  formatCycleDate,
+  getGrowthCycle,
+  GROWTH_CYCLES,
+  validateCycleAmount,
+  type GrowthCycleCode,
+} from "@/lib/growth-cycles";
 
 const BANK = {
   name: "FNB (First National Bank)",
@@ -20,27 +35,30 @@ const BANK = {
 export function DepositDialog({
   open,
   onOpenChange,
-  defaultCurrency,
   accountId,
   userId,
 }: {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
-  defaultCurrency: Currency;
+  onOpenChange: (value: boolean) => void;
   accountId: string;
   userId: string;
 }) {
-  const [currency, setCurrency] = useState<Currency>(defaultCurrency);
+  const [cycleCode, setCycleCode] = useState<GrowthCycleCode>("15d");
   const [amount, setAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const submissionRef = useRef<{ key: string; reference: string } | null>(null);
-  const credit = creditDeposit;
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
 
+  const cycle = getGrowthCycle(cycleCode);
+  const amountValue = Number(amount);
+  const amountError = amount ? validateCycleAmount(amountValue, cycle) : null;
+  const expectedAmount = amount && !amountError ? expectedCycleAmount(amountValue, cycle) : null;
+  const estimatedDate = estimatedMaturityDate(cycle.termDays);
   const reference = accountId;
-  const copy = (v: string, label: string) => {
-    navigator.clipboard.writeText(v);
+
+  const copy = (value: string, label: string) => {
+    void navigator.clipboard.writeText(value);
     toast.success(`${label} copied`);
   };
 
@@ -50,102 +68,176 @@ export function DepositDialog({
         <DialogHeader>
           <DialogTitle>Deposit to your wallet</DialogTitle>
           <DialogDescription>
-            Make an EFT/bank deposit to the account below, then upload your proof of payment.
-            Your deposit will appear as pending until an administrator verifies that the funds have cleared.
+            Choose a growth cycle, make an EFT to the account below, then upload your proof of
+            payment. Your deposit remains pending until an administrator confirms the funds have
+            cleared.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 rounded-xl border border-border/60 bg-muted/40 p-4 text-sm">
           <Row label="Bank" value={BANK.name} />
-          <Row label="Account number" value={BANK.account} onCopy={() => copy(BANK.account, "Account number")} />
-          <Row label="Branch code" value={BANK.branch} onCopy={() => copy(BANK.branch, "Branch code")} />
-          <Row label="Reference" value={reference} onCopy={() => copy(reference, "Reference")} highlight />
+          <Row
+            label="Account number"
+            value={BANK.account}
+            onCopy={() => copy(BANK.account, "Account number")}
+          />
+          <Row
+            label="Branch code"
+            value={BANK.branch}
+            onCopy={() => copy(BANK.branch, "Branch code")}
+          />
+          <Row
+            label="Reference"
+            value={reference}
+            onCopy={() => copy(reference, "Reference")}
+            highlight
+          />
         </div>
 
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-          <strong>Please use an immediate payment.</strong> Deposits remain pending until an administrator
-          confirms that funds have cleared into our
-          bank account. Your 30-day growth cycle starts on the approval date — e.g. if you deposit on
-          the 12th and the admin approves on the 13th, your start date will be the 13th, not the 12th.
+          <strong>Please use an immediate payment.</strong> Your selected growth cycle starts only
+          when the administrator approves the cleared funds. The maturity date shown below is an
+          estimate based on approval today.
         </div>
 
         <form
           className="space-y-4"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const amt = Number(amount);
-            if (!isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount");
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const validationError = validateCycleAmount(amountValue, cycle);
+            if (validationError) return toast.error(validationError);
             if (!file) return toast.error("Please upload your proof of payment");
             if (file.size > 10 * 1024 * 1024) return toast.error("File must be under 10MB");
+
             setLoading(true);
             try {
-              const submissionKey = `${currency}:${amt.toFixed(2)}:${file.name}:${file.size}:${file.lastModified}`;
+              const submissionKey = `ZAR:${cycleCode}:${amountValue.toFixed(2)}:${file.name}:${file.size}:${file.lastModified}`;
               if (submissionRef.current?.key !== submissionKey) {
-                submissionRef.current = { key: submissionKey, reference: `POP-${crypto.randomUUID()}` };
+                submissionRef.current = {
+                  key: submissionKey,
+                  reference: `POP-${crypto.randomUUID()}`,
+                };
               }
-              const ref = submissionRef.current.reference;
-              const ext = file.name.split(".").pop() || "bin";
-              const path = `${userId}/${ref}.${ext}`;
-              const up = await supabase.storage.from("deposits").upload(path, file, {
+              const depositReference = submissionRef.current.reference;
+              const extension = file.name.split(".").pop() || "bin";
+              const path = `${userId}/${depositReference}.${extension}`;
+              const upload = await supabase.storage.from("deposits").upload(path, file, {
                 contentType: file.type || "application/octet-stream",
                 upsert: false,
               });
-              const duplicateUpload = up.error && (
-                (up.error as any).statusCode === "409"
-                || /already exists|duplicate/i.test(up.error.message)
+              const uploadStatus = (upload.error as { statusCode?: string | number } | null)
+                ?.statusCode;
+              const duplicateUpload =
+                upload.error &&
+                (String(uploadStatus) === "409" ||
+                  /already exists|duplicate/i.test(upload.error.message));
+              if (upload.error && !duplicateUpload) throw upload.error;
+
+              await creditDeposit({
+                data: {
+                  amount: amountValue,
+                  currency: "ZAR",
+                  cycleCode,
+                  reference: depositReference,
+                  proofUrl: path,
+                },
+              });
+              toast.success(
+                `${formatMoney(amountValue, "ZAR")} submitted for the ${cycle.label} cycle and is pending verification.`,
               );
-              if (up.error && !duplicateUpload) throw up.error;
-              await credit({ data: { amount: amt, currency, reference: ref, proofUrl: path } });
-              toast.success(`Deposit submitted — ${currency} ${amt.toFixed(2)} is pending administrator verification.`);
-              await qc.invalidateQueries();
-              setAmount(""); setFile(null);
+              await queryClient.invalidateQueries();
+              setAmount("");
+              setFile(null);
               submissionRef.current = null;
               onOpenChange(false);
-            } catch (err: any) {
-              toast.error(err.message ?? "Upload failed");
+            } catch (error: unknown) {
+              toast.error(error instanceof Error ? error.message : "Upload failed");
             } finally {
               setLoading(false);
             }
           }}
         >
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-1">
-              <Label>Currency</Label>
-              <Select value={currency} onValueChange={(v) => setCurrency(v as Currency)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c} value={c}>{CURRENCY_META[c].symbol} {c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2">
-              <Label htmlFor="amt">Amount deposited</Label>
-              <Input id="amt" type="number" min="0" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-            </div>
+          <div>
+            <Label>Choose a ZAR growth cycle</Label>
+            <RadioGroup
+              className="mt-2 grid grid-cols-2 gap-2"
+              value={cycleCode}
+              onValueChange={(value) => setCycleCode(value as GrowthCycleCode)}
+            >
+              {GROWTH_CYCLES.map((option) => (
+                <label
+                  key={option.code}
+                  className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition-colors ${
+                    option.code === cycleCode
+                      ? "border-primary bg-primary/10"
+                      : "border-border/60 hover:bg-muted/40"
+                  }`}
+                >
+                  <RadioGroupItem value={option.code} className="mt-0.5" />
+                  <span>
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {formatMoney(option.minAmount, "ZAR")} –{" "}
+                      {formatMoney(option.maxAmount, "ZAR")}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </RadioGroup>
           </div>
 
           <div>
-            <Label htmlFor="pop">Proof of payment (image or PDF)</Label>
-            <label htmlFor="pop" className="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-background/40 p-4 text-sm text-muted-foreground hover:bg-muted/40">
+            <Label htmlFor="deposit-amount">Amount deposited (ZAR)</Label>
+            <Input
+              id="deposit-amount"
+              type="number"
+              min={cycle.minAmount}
+              max={cycle.maxAmount}
+              step="0.01"
+              required
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              placeholder={String(cycle.minAmount)}
+              aria-invalid={Boolean(amountError)}
+            />
+            {amountError && <p className="mt-1 text-xs text-destructive">{amountError}</p>}
+          </div>
+
+          {expectedAmount !== null && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm leading-relaxed text-emerald-900 dark:text-emerald-200">
+              Lock {formatMoney(amountValue, "ZAR")} for {cycle.shortLabel}. If approved today, the
+              estimated maturity date is {formatCycleDate(estimatedDate)}. Expected withdrawable
+              amount: <strong>{formatMoney(expectedAmount, "ZAR")}</strong>.
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="proof-of-payment">Proof of payment (image or PDF)</Label>
+            <label
+              htmlFor="proof-of-payment"
+              className="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-background/40 p-4 text-sm text-muted-foreground hover:bg-muted/40"
+            >
               <Upload className="h-4 w-4" />
               {file ? file.name : "Click to select receipt (max 10MB)"}
             </label>
             <input
-              id="pop"
+              id="proof-of-payment"
               type="file"
               accept="image/*,application/pdf"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </div>
 
-          <Button type="submit" className="w-full gradient-brand text-white" disabled={loading}>
+          <Button
+            type="submit"
+            className="w-full gradient-brand text-white"
+            disabled={loading || Boolean(amountError)}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit deposit
           </Button>
           <p className="text-center text-[11px] text-muted-foreground">
-            Pending deposits are not available to withdraw and do not begin a growth cycle until approved.
+            Pending deposits are not withdrawable and do not begin growing until approved.
           </p>
         </form>
       </DialogContent>
@@ -153,7 +245,17 @@ export function DepositDialog({
   );
 }
 
-function Row({ label, value, onCopy, highlight }: { label: string; value: string; onCopy?: () => void; highlight?: boolean }) {
+function Row({
+  label,
+  value,
+  onCopy,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  onCopy?: () => void;
+  highlight?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>

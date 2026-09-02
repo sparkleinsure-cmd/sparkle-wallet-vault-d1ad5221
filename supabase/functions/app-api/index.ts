@@ -7,6 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const CURRENCIES = new Set(["ZAR", "USD"]);
+const GROWTH_CYCLES = new Set(["15d", "30d", "180d", "360d"]);
 const ADMIN_EMAIL = "sparkleinsure@gmail.com";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -23,6 +24,11 @@ function requireAmount(value: unknown, max = 10_000_000): number {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0 || amount > max) throw new Error("Invalid amount");
   return amount;
+}
+
+function requireGrowthCycle(value: unknown): "15d" | "30d" | "180d" | "360d" {
+  if (typeof value !== "string" || !GROWTH_CYCLES.has(value)) throw new Error("Select a valid growth cycle");
+  return value as "15d" | "30d" | "180d" | "360d";
 }
 
 function requireString(value: unknown, field: string, min = 1, max = 500): string {
@@ -284,10 +290,13 @@ serve(async (req) => {
       case "creditDeposit": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
+        if (currency !== "ZAR") throw new Error("Growth cycles support ZAR only");
+        const cycleCode = requireGrowthCycle(data.cycleCode);
         const reference = requireString(data.reference, "reference", 3, 200);
         const proofUrl = requireString(data.proofUrl, "proof", 3, 500);
         const secureDeposit = await supabase.rpc("submit_deposit_secure", {
           p_amount: amount, p_currency: currency, p_reference: reference, p_proof_path: proofUrl,
+          p_cycle_code: cycleCode,
         });
         if (secureDeposit.error) throw new Error(secureDeposit.error.message);
         return json({ data: { ok: true, transactionId: secureDeposit.data, status: "pending" } });
@@ -362,11 +371,14 @@ serve(async (req) => {
       case "moveWithdrawableToGrowing": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
+        if (currency !== "ZAR") throw new Error("Growth cycles support ZAR only");
+        const cycleCode = requireGrowthCycle(data.cycleCode);
         const requestId = requireString(data.requestId, "request ID", 36, 36);
         const moved = await supabase.rpc("move_withdrawable_to_growing_idempotent_secure", {
           p_amount: amount,
           p_currency: currency,
           p_request_id: requestId,
+          p_cycle_code: cycleCode,
         });
         if (moved.error) throw new Error(moved.error.message);
         return json({ data: moved.data });
@@ -772,9 +784,11 @@ serve(async (req) => {
       case "adminVerifyDeposit": {
         await assertAdmin(supabase, userId);
         const txId = requireString(data.txId, "transaction", 36, 36);
+        const cycleCode = data.cycleCode == null ? null : requireGrowthCycle(data.cycleCode);
         const approved = await supabase.rpc("admin_approve_deposit_secure", {
           p_tx_id: txId, p_corrected_amount: data.correctedAmount == null ? null : requireAmount(data.correctedAmount),
           p_note: typeof data.note === "string" ? data.note.slice(0, 300) : null,
+          p_cycle_code: cycleCode,
         });
         if (approved.error) throw new Error(approved.error.message);
         return json({ data: { ok: true, approvedAmount: approved.data } });

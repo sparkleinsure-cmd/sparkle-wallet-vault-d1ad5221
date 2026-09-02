@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
 import { useState } from "react";
+import { formatCycleDate } from "@/lib/growth-cycles";
 
 type Tranche = {
   id: string;
@@ -15,6 +16,9 @@ type Tranche = {
   source: string;
   created_at: string;
   maturity_date: string;
+  cycle_label?: string | null;
+  term_days?: number | null;
+  target_gain?: number | null;
 };
 
 export function BalanceCard({
@@ -116,7 +120,7 @@ export function BalanceCard({
             <div className="mt-1 whitespace-nowrap font-display text-[clamp(1rem,5vw,1.25rem)] font-bold leading-tight tracking-[-0.035em] tabular-nums">
               {formatMoney(growing, currency)}
             </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">Active 30-day cycles</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Active selected cycles</div>
           </div>
         </div>
 
@@ -141,6 +145,7 @@ export function BalanceCard({
               const matured = ms <= 0;
               const cur = Number(t.current_balance ?? t.remaining);
               const init = Number(t.amount);
+              const expected = t.target_gain == null ? null : init + Number(t.target_gain);
               return (
                 <div key={t.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 p-3 text-sm">
                   <div>
@@ -154,6 +159,10 @@ export function BalanceCard({
                     </div>
                     <div className="text-[11px] text-muted-foreground">
                       {t.source === "transfer" ? "Moved to growing" : t.source === "referral" ? "Referral reward" : t.source === "bonus" ? "Bonus" : "Deposit"} · {new Date(t.created_at).toLocaleDateString()}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {t.cycle_label ?? (t.term_days ? `${t.term_days} days` : "Growth cycle")} · Matures {formatCycleDate(t.maturity_date)}
+                      {expected !== null ? ` · Expected ${formatMoney(expected, t.currency as Currency)}` : ""}
                     </div>
                   </div>
                   <div className={`text-xs font-medium ${matured ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>

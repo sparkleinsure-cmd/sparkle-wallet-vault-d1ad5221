@@ -21,6 +21,9 @@ export type Database = {
           created_at: string
           currency: string
           current_balance: number
+          cycle_label: string | null
+          daily_rate: number | null
+          growth_cycle_code: string | null
           id: string
           maturity_date: string
           note: string | null
@@ -28,6 +31,8 @@ export type Database = {
           remaining: number
           source: string
           status: string
+          target_gain: number | null
+          term_days: number | null
           transaction_id: string | null
           user_id: string
         }
@@ -37,6 +42,9 @@ export type Database = {
           created_at?: string
           currency: string
           current_balance?: number
+          cycle_label?: string | null
+          daily_rate?: number | null
+          growth_cycle_code?: string | null
           id?: string
           maturity_date: string
           note?: string | null
@@ -44,6 +52,8 @@ export type Database = {
           remaining: number
           source?: string
           status?: string
+          target_gain?: number | null
+          term_days?: number | null
           transaction_id?: string | null
           user_id: string
         }
@@ -53,6 +63,9 @@ export type Database = {
           created_at?: string
           currency?: string
           current_balance?: number
+          cycle_label?: string | null
+          daily_rate?: number | null
+          growth_cycle_code?: string | null
           id?: string
           maturity_date?: string
           note?: string | null
@@ -60,6 +73,8 @@ export type Database = {
           remaining?: number
           source?: string
           status?: string
+          target_gain?: number | null
+          term_days?: number | null
           transaction_id?: string | null
           user_id?: string
         }
@@ -72,6 +87,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growth_cycle_products: {
+        Row: {
+          active: boolean
+          code: string
+          daily_rate: number
+          label: string
+          max_amount: number
+          min_amount: number
+          sort_order: number
+          term_days: number
+          total_growth_rate: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          daily_rate: number
+          label: string
+          max_amount: number
+          min_amount: number
+          sort_order: number
+          term_days: number
+          total_growth_rate: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          daily_rate?: number
+          label?: string
+          max_amount?: number
+          min_amount?: number
+          sort_order?: number
+          term_days?: number
+          total_growth_rate?: number
+        }
+        Relationships: []
       }
       otp_codes: {
         Row: {
@@ -145,6 +196,7 @@ export type Database = {
           created_at: string
           currency: string
           description: string | null
+          growth_cycle_code: string | null
           id: string
           proof_url: string | null
           reference: string | null
@@ -157,6 +209,7 @@ export type Database = {
           created_at?: string
           currency: string
           description?: string | null
+          growth_cycle_code?: string | null
           id?: string
           proof_url?: string | null
           reference?: string | null
@@ -169,6 +222,7 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string | null
+          growth_cycle_code?: string | null
           id?: string
           proof_url?: string | null
           reference?: string | null

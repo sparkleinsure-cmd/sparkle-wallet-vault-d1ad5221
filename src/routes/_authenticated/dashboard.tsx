@@ -204,7 +204,7 @@ function DashboardPage() {
           currency={currency}
           tranches={(data as any).tranches ?? []}
           onMoveToGrowing={() => setGrowOpen(true)}
-          moveToGrowingDisabled={withdrawable <= 0}
+          moveToGrowingDisabled={currency !== "ZAR" || withdrawable <= 0}
           onCurrencyChange={async (c) => {
             await setCcy({ data: { currency: c } });
             qc.invalidateQueries({ queryKey: ["me"] });
@@ -286,7 +286,7 @@ function DashboardPage() {
         </nav>
       )}
 
-      <DepositDialog open={depOpen} onOpenChange={setDepOpen} defaultCurrency={currency} accountId={profile.account_id} userId={profile.id} />
+      <DepositDialog open={depOpen} onOpenChange={setDepOpen} accountId={profile.account_id} userId={profile.id} />
       <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} withdrawable={withdrawable} bankName={profile.bank_name} accountLast4={profile.bank_account_number ? String(profile.bank_account_number).slice(-4) : null} />
       <GrowFundsDialog open={growOpen} onOpenChange={setGrowOpen} currency={currency} withdrawable={withdrawable} />
       <StatementDialog
