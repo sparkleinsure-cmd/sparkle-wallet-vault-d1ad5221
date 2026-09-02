@@ -48,3 +48,6 @@ enabled = false
 
 [functions.storage-cleanup]
 verify_jwt = false
+
+[functions.withdrawable-credit-email]
+verify_jwt = false
