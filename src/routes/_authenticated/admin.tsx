@@ -12,6 +12,7 @@ import {
   adminDeclineDeposit,
   adminListPendingWithdrawals,
   adminCompleteWithdrawal,
+  adminRefundWithdrawal,
   adminListActiveTranches,
   adminSetKycStatus,
   adminGetKycProofUrl,
@@ -36,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
@@ -62,6 +63,7 @@ function AdminPage() {
   const declineDep = adminDeclineDeposit;
   const listWithdrawals = adminListPendingWithdrawals;
   const completeWithdrawal = adminCompleteWithdrawal;
+  const refundWithdrawal = adminRefundWithdrawal;
   const listTranches = adminListActiveTranches;
   const setKycStatus = adminSetKycStatus;
   const getKycProof = adminGetKycProofUrl;
@@ -127,6 +129,7 @@ function AdminPage() {
   const [holdRule, setHoldRule] = useState<"attach" | "instant">("instant");
   const [parentTrancheId, setParentTrancheId] = useState<string>("");
   const [activeTranches, setActiveTranches] = useState<any[]>([]);
+  const creditRequestRef = useRef<{ key: string; id: string } | null>(null);
 
   useEffect(() => {
     if (!target?.profile || holdRule !== "attach") { setActiveTranches([]); return; }
@@ -300,6 +303,13 @@ function AdminPage() {
                       await completeWithdrawal({ data: { txId: w.id, note } });
                       toast.success("Withdrawal marked completed");
                       refetchWithdrawals();
+                    } catch (e: any) { toast.error(e.message); }
+                  }}
+                  onRefund={async (note) => {
+                    try {
+                      await refundWithdrawal({ data: { txId: w.id, note } });
+                      toast.success("Withdrawal failed and funds returned to the member");
+                      await Promise.all([refetchWithdrawals(), refetchWalletOverview()]);
                     } catch (e: any) { toast.error(e.message); }
                   }}
                 />
@@ -509,6 +519,13 @@ function AdminPage() {
                 const amt = Number(amount);
                 if (!isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount");
                 if (holdRule === "attach" && !parentTrancheId) return toast.error("Select an active tranche");
+                const creditKey = [
+                  target.profile.account_id, currency, amt.toFixed(2), holdRule,
+                  holdRule === "attach" ? parentTrancheId : "", note.trim(),
+                ].join(":");
+                if (creditRequestRef.current?.key !== creditKey) {
+                  creditRequestRef.current = { key: creditKey, id: crypto.randomUUID() };
+                }
                 setLoading(true);
                 try {
                   await credit({ data: {
@@ -517,11 +534,13 @@ function AdminPage() {
                     note: note || undefined,
                     holdRule,
                     parentTrancheId: holdRule === "attach" ? parentTrancheId : undefined,
+                    requestId: creditRequestRef.current.id,
                   } });
                   toast.success(`Credited ${formatMoney(amt, currency)} to ${target.profile.account_id}`);
                   const r = await lookup({ data: { accountId: target.profile.account_id } });
                   setTarget(r);
                   setAmount(""); setNote(""); setParentTrancheId("");
+                  creditRequestRef.current = null;
                 } catch (err: any) { toast.error(err.message); }
                 finally { setLoading(false); }
               }}
@@ -798,9 +817,11 @@ function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: 
 function WithdrawalRow({
   withdrawal,
   onComplete,
+  onRefund,
 }: {
   withdrawal: any;
   onComplete: (note: string | undefined) => void;
+  onRefund: (note: string | undefined) => void;
 }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -832,7 +853,7 @@ function WithdrawalRow({
           <FileDown className="mr-2 h-4 w-4" /> Download PDF
         </Button>
       </div>
-      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
         <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note (e.g. reference paid)" />
         <Button
           size="sm"
@@ -845,6 +866,19 @@ function WithdrawalRow({
           }}
         >
           <CheckCircle2 className="mr-2 h-4 w-4" /> Mark completed
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm("Confirm that this payout failed and return the full amount to the member's wallet?")) return;
+            setBusy(true);
+            await onRefund(note.trim() || undefined);
+            setBusy(false);
+          }}
+        >
+          <XCircle className="mr-2 h-4 w-4" /> Fail &amp; refund
         </Button>
       </div>
     </div>

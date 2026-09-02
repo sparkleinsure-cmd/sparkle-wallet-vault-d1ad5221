@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CURRENCIES, CURRENCY_META, type Currency } from "@/lib/currency";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { creditDeposit } from "@/lib/app-api";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,7 @@ export function DepositDialog({
   const [amount, setAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const submissionRef = useRef<{ key: string; reference: string } | null>(null);
   const credit = creditDeposit;
   const qc = useQueryClient();
 
@@ -78,18 +79,27 @@ export function DepositDialog({
             if (file.size > 10 * 1024 * 1024) return toast.error("File must be under 10MB");
             setLoading(true);
             try {
-              const ref = `POP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+              const submissionKey = `${currency}:${amt.toFixed(2)}:${file.name}:${file.size}:${file.lastModified}`;
+              if (submissionRef.current?.key !== submissionKey) {
+                submissionRef.current = { key: submissionKey, reference: `POP-${crypto.randomUUID()}` };
+              }
+              const ref = submissionRef.current.reference;
               const ext = file.name.split(".").pop() || "bin";
               const path = `${userId}/${ref}.${ext}`;
               const up = await supabase.storage.from("deposits").upload(path, file, {
                 contentType: file.type || "application/octet-stream",
                 upsert: false,
               });
-              if (up.error) throw up.error;
+              const duplicateUpload = up.error && (
+                (up.error as any).statusCode === "409"
+                || /already exists|duplicate/i.test(up.error.message)
+              );
+              if (up.error && !duplicateUpload) throw up.error;
               await credit({ data: { amount: amt, currency, reference: ref, proofUrl: path } });
               toast.success(`Deposit submitted — ${currency} ${amt.toFixed(2)} is pending administrator verification.`);
               await qc.invalidateQueries();
               setAmount(""); setFile(null);
+              submissionRef.current = null;
               onOpenChange(false);
             } catch (err: any) {
               toast.error(err.message ?? "Upload failed");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ export function GrowFundsDialog({
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [maturityDate, setMaturityDate] = useState<string | null>(null);
+  const requestRef = useRef<{ key: string; id: string } | null>(null);
   const queryClient = useQueryClient();
 
   const close = (nextOpen: boolean) => {
@@ -30,6 +31,7 @@ export function GrowFundsDialog({
     if (!nextOpen) {
       setAmount("");
       setMaturityDate(null);
+      requestRef.current = null;
     }
   };
 
@@ -60,9 +62,16 @@ export function GrowFundsDialog({
               if (!Number.isFinite(value) || value <= 0) return toast.error("Enter a valid amount");
               if (value > withdrawable) return toast.error("Only withdrawable funds can be moved to growing");
 
+              const requestKey = `${currency}:${value.toFixed(2)}`;
+              if (requestRef.current?.key !== requestKey) {
+                requestRef.current = { key: requestKey, id: crypto.randomUUID() };
+              }
+
               setLoading(true);
               try {
-                const result = await moveWithdrawableToGrowing({ data: { amount: value, currency } });
+                const result = await moveWithdrawableToGrowing({
+                  data: { amount: value, currency, requestId: requestRef.current.id },
+                });
                 setMaturityDate(result.maturityDate);
                 toast.success(`${formatMoney(result.amount, currency)} moved to a new 30-day growing cycle.`);
                 await Promise.all([

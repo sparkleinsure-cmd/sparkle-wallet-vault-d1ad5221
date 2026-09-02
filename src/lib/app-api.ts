@@ -30,8 +30,8 @@ export const setPayoutDetails = ({ data }: Input<{ bankName: string; accountNumb
 export const requestPayoutDetailsChange = () => call<{ availableAt: string }>("requestPayoutDetailsChange");
 export const updateProfileContact = ({ data }: Input<{ phone: string; streetAddress: string; province: string; postalCode: string }>) => call<{ ok: true }>("updateProfileContact", data);
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
-export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; confirmBreak?: boolean }>) => call<any>("requestWithdrawal", data);
-export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string }>) => call<{ ok: true; amount: number; currency: string; maturityDate: string; transactionId: string }>("moveWithdrawableToGrowing", data);
+export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<any>("requestWithdrawal", data);
+export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<{ ok: true; amount: number; currency: string; maturityDate: string; transactionId: string }>("moveWithdrawableToGrowing", data);
 export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfiePath: string }>) =>
   call<{ ok: true; status: "pending" }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
@@ -44,7 +44,7 @@ export const submitAccountFreezeDispute = ({ data }: Input<{ documentPath: strin
   call<{ ok: true; disputeId: string }>("submitAccountFreezeDispute", data);
 
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
-export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string }>) => call<any>("adminCreditBonus", data);
+export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string; requestId: string }>) => call<any>("adminCreditBonus", data);
 export const adminListActiveTranches = ({ data }: Input<{ accountId: string; currency: string }>) => call<any>("adminListActiveTranches", data);
 export const adminSeedDemo = () => call<any>("adminSeedDemo");
 export const adminListPendingKyc = () => call<any>("adminListPendingKyc");
@@ -55,6 +55,7 @@ export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmou
 export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: string }>) => call<any>("adminDeclineDeposit", data);
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
+export const adminRefundWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminRefundWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
 export const adminGetUserCount = () => call<{ count: number; onlineCount: number }>("adminGetUserCount");
 export const adminGetWalletOverview = () => call<any>("adminGetWalletOverview");

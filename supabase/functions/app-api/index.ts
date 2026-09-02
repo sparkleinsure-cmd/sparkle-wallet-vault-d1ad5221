@@ -310,9 +310,9 @@ serve(async (req) => {
       case "requestWithdrawal": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
-        const secureWithdrawal = await supabase.rpc("request_withdrawal_secure", {
-          p_amount: amount, p_currency: currency, p_bank_name: null,
-          p_account_number: null, p_confirm_break: data.confirmBreak === true,
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
+        const secureWithdrawal = await supabase.rpc("request_withdrawal_idempotent_secure", {
+          p_amount: amount, p_currency: currency, p_request_id: requestId,
         });
         if (secureWithdrawal.error) throw new Error(secureWithdrawal.error.message);
         return json({ data: { ok: true, ...(secureWithdrawal.data ?? {}) } });
@@ -362,9 +362,11 @@ serve(async (req) => {
       case "moveWithdrawableToGrowing": {
         const amount = requireAmount(data.amount);
         const currency = requireCurrency(data.currency);
-        const moved = await supabase.rpc("move_withdrawable_to_growing_secure", {
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
+        const moved = await supabase.rpc("move_withdrawable_to_growing_idempotent_secure", {
           p_amount: amount,
           p_currency: currency,
+          p_request_id: requestId,
         });
         if (moved.error) throw new Error(moved.error.message);
         return json({ data: moved.data });
@@ -706,15 +708,17 @@ serve(async (req) => {
         const accountId = requireString(data.accountId, "account ID", 3, 20).toUpperCase();
         const currency = requireCurrency(data.currency);
         const amount = requireAmount(data.amount, 1_000_000);
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
         const holdRule = data.holdRule === "attach" ? "attach" : data.holdRule === "instant" ? "instant" : null;
         if (!holdRule) throw new Error("Invalid hold rule");
         const profile = await supabase.from("profiles").select("id").eq("account_id", accountId).maybeSingle();
         if (!profile.data) throw new Error("Account not found");
         const targetId = profile.data.id;
-        const secureCredit = await supabase.rpc("admin_credit_bonus_secure", {
+        const secureCredit = await supabase.rpc("admin_credit_bonus_idempotent_secure", {
           p_user_id: targetId, p_currency: currency, p_amount: amount,
           p_note: typeof data.note === "string" ? data.note.slice(0, 200) : null,
           p_hold_rule: holdRule, p_parent_tranche_id: holdRule === "attach" ? requireString(data.parentTrancheId, "tranche", 1, 100) : null,
+          p_request_id: requestId,
         });
         if (secureCredit.error) throw new Error(secureCredit.error.message);
         return json({ data: { ok: true, balance: secureCredit.data } });
@@ -835,6 +839,16 @@ serve(async (req) => {
         const note = typeof data.note === "string" ? data.note.slice(0, 300) : "";
         const updated = await supabase.from("transactions").update({ status: "completed", description: `Withdrawal approved - Paid${note ? ` — ${note}` : ""}` }).eq("id", txId);
         if (updated.error) throw new Error(updated.error.message);
+        return json({ data: { ok: true } });
+      }
+
+      case "adminRefundWithdrawal": {
+        await assertAdmin(supabase, userId);
+        const txId = requireString(data.txId, "transaction", 36, 36);
+        const refunded = await supabase.rpc("admin_refund_withdrawal_secure", {
+          p_tx_id: txId, p_note: typeof data.note === "string" ? data.note.slice(0, 300) : null,
+        });
+        if (refunded.error) throw new Error(refunded.error.message);
         return json({ data: { ok: true } });
       }
 

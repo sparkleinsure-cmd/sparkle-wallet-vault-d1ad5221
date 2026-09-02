@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { requestWithdrawal } from "@/lib/app-api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,18 +29,23 @@ export function WithdrawDialog({
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const requestRef = useRef<{ key: string; id: string } | null>(null);
   const req = requestWithdrawal;
   const qc = useQueryClient();
 
   const submit = async () => {
     const amt = Number(amount);
+    const requestKey = `${currency}:${amt.toFixed(2)}`;
+    if (requestRef.current?.key !== requestKey) {
+      requestRef.current = { key: requestKey, id: crypto.randomUUID() };
+    }
     setLoading(true);
     try {
       const result = await req({
         data: {
           amount: amt,
           currency,
-          confirmBreak: false,
+          requestId: requestRef.current.id,
         },
       });
       setDone(true);
@@ -54,7 +59,14 @@ export function WithdrawDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setDone(false); }}>
+    <Dialog open={open} onOpenChange={(v) => {
+      onOpenChange(v);
+      if (!v) {
+        setDone(false);
+        setAmount("");
+        requestRef.current = null;
+      }
+    }}>
       <DialogContent className="rounded-2xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Request a withdrawal</DialogTitle>
