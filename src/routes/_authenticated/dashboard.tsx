@@ -55,10 +55,19 @@ function DashboardPage() {
   useEffect(() => {
     const referralCode = localStorage.getItem("sparkle_referral_code");
     if (!referralCode || !data?.profile) return;
+
+    const normalizedReferralCode = referralCode.trim().toUpperCase();
+    const ownAccountId = String(data.profile.account_id ?? "").trim().toUpperCase();
+    if (normalizedReferralCode === ownAccountId) {
+      localStorage.removeItem("sparkle_referral_code");
+      return;
+    }
+
     void supabase.rpc("register_my_referral" as any, { p_referral_code: referralCode } as any)
       .then(({ data: registered, error }) => {
-        if (registered) localStorage.removeItem("sparkle_referral_code");
-        else if (error) console.warn("Referral registration was not completed", error.message);
+        const terminalError = error && /cannot refer yourself|invalid referral link|after a deposit/i.test(error.message);
+        if (registered || !error || terminalError) localStorage.removeItem("sparkle_referral_code");
+        if (error && !terminalError) console.warn("Referral registration was not completed", error.message);
       });
   }, [data?.profile]);
 
