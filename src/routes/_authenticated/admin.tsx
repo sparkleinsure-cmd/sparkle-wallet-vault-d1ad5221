@@ -87,7 +87,9 @@ function AdminPage() {
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const [showUsers, setShowUsers] = useState(false);
+  const [showRecruiters, setShowRecruiters] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+  const [recruiterSearch, setRecruiterSearch] = useState("");
   const { data: registeredUsers, isFetching: usersLoading, refetch: refetchUsers } = useQuery({
     queryKey: ["admin-users", userSearch],
     queryFn: () => adminListUsers({ data: { search: userSearch } }),
@@ -101,6 +103,17 @@ function AdminPage() {
     queryFn: adminListRecruiterApplications,
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
+  });
+  const recruiterRecords = recruiterApplications?.applications ?? [];
+  const pendingRecruiterApplications = recruiterRecords.filter((application) => application.status === "pending");
+  const managedRecruiters = recruiterRecords.filter((application) => application.status === "approved" || application.status === "suspended");
+  const approvedRecruiterCount = managedRecruiters.filter((application) => application.status === "approved").length;
+  const visibleRecruiters = managedRecruiters.filter((application) => {
+    const search = recruiterSearch.trim().toLowerCase();
+    if (!search) return true;
+    return [application.firstName, application.surname, application.email, application.phone, application.accountId]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(search));
   });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
@@ -233,6 +246,60 @@ function AdminPage() {
           </Card>
         )}
 
+        <Card
+          className="glass-card flex cursor-pointer flex-wrap items-center gap-3 rounded-2xl p-5 transition-colors hover:border-violet-500/40"
+          role="button"
+          tabIndex={0}
+          aria-expanded={showRecruiters}
+          onClick={() => setShowRecruiters((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowRecruiters((value) => !value);
+            }
+          }}
+        >
+          <div className="rounded-full bg-violet-500/15 p-3"><BriefcaseBusiness className="h-5 w-5 text-violet-600" /></div>
+          <div className="min-w-32 flex-1">
+            <div className="text-sm text-muted-foreground">Recruiters</div>
+            <div className="font-display text-3xl font-bold">{managedRecruiters.length}</div>
+            <div className="mt-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">
+              {approvedRecruiterCount} approved
+              {managedRecruiters.length > approvedRecruiterCount ? ` · ${managedRecruiters.length - approvedRecruiterCount} suspended` : ""}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm font-medium text-violet-600">
+            {showRecruiters ? "Hide recruiters" : "View recruiters"}
+            {showRecruiters ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </div>
+        </Card>
+
+        {showRecruiters && (
+          <Card className="glass-card rounded-2xl p-6">
+            <div className="mb-4">
+              <h2 className="font-display text-lg font-semibold">Recruiters</h2>
+              <p className="text-sm text-muted-foreground">View approved recruiter accounts or manage suspended access.</p>
+            </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search recruiters…" value={recruiterSearch} onChange={(event) => setRecruiterSearch(event.target.value)} />
+            </div>
+            {!visibleRecruiters.length ? (
+              <p className="py-4 text-sm text-muted-foreground">No recruiters match this search.</p>
+            ) : (
+              <div className="space-y-3">
+                {visibleRecruiters.map((application) => (
+                  <RecruiterApplicationRow
+                    key={application.id}
+                    application={application}
+                    onDone={() => refetchRecruiterApplications()}
+                  />
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
             <BriefcaseBusiness className="mr-2 h-5 w-5 text-violet-600" />
@@ -246,11 +313,11 @@ function AdminPage() {
           <p className="mb-4 text-sm text-muted-foreground">
             Review banking confirmation, agreement acceptance and recruiter access separately from normal referrals.
           </p>
-          {!recruiterApplications?.applications?.length ? (
-            <p className="text-sm text-muted-foreground">No recruiter applications have been submitted.</p>
+          {!pendingRecruiterApplications.length ? (
+            <p className="text-sm text-muted-foreground">No recruiter applications are waiting for review.</p>
           ) : (
             <div className="space-y-3">
-              {recruiterApplications.applications.map((application) => (
+              {pendingRecruiterApplications.map((application) => (
                 <RecruiterApplicationRow
                   key={application.id}
                   application={application}

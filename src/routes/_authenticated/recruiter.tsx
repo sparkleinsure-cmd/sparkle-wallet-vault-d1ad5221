@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   getMe,
   getRecruiterDashboard,
@@ -488,12 +487,8 @@ function ApprovedDashboard({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          icon={Target}
-          label="Qualifying deposits"
-          value={money(Number(period.qualifyingDeposits))}
-        />
-        <Stat icon={Users} label="Qualifying recruits" value={String(period.qualifyingRecruits)} />
+        <Stat icon={Target} label="Deposits" value={money(Number(period.qualifyingDeposits))} />
+        <Stat icon={Users} label="Recruits" value={String(period.qualifyingRecruits)} />
         <Stat icon={WalletCards} label="Monthly wallet credit" value="R3,000" />
         <Stat
           icon={CheckCircle2}
@@ -502,29 +497,16 @@ function ApprovedDashboard({
         />
       </div>
 
-      <Card className="glass-card rounded-3xl p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">Current qualification period</p>
-            <h2 className="font-display text-2xl font-bold">
-              {period.qualified
-                ? "Monthly target reached"
-                : `${money(Number(period.remaining))} remaining`}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {date(period.start)} – {date(period.end)} · salary day {date(period.salaryDate)}
-            </p>
-          </div>
-          <Badge variant={period.qualified ? "default" : "secondary"}>
-            {Math.round(progress)}% complete
-          </Badge>
-        </div>
-        <Progress value={progress} className="mt-6 h-4" />
-        <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-          <span>{money(Number(period.qualifyingDeposits))}</span>
-          <span>{money(Number(period.target))}</span>
-        </div>
-      </Card>
+      <RecruiterProgressVisual
+        progress={progress}
+        deposits={Number(period.qualifyingDeposits)}
+        target={Number(period.target)}
+        remaining={Number(period.remaining)}
+        qualified={period.qualified}
+        periodStart={period.start}
+        periodEnd={period.end}
+        salaryDate={period.salaryDate}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="glass-card rounded-3xl p-6">
@@ -601,6 +583,124 @@ function ApprovedDashboard({
         </Card>
       )}
     </div>
+  );
+}
+
+function RecruiterProgressVisual({
+  progress,
+  deposits,
+  target,
+  remaining,
+  qualified,
+  periodStart,
+  periodEnd,
+  salaryDate,
+}: {
+  progress: number;
+  deposits: number;
+  target: number;
+  remaining: number;
+  qualified: boolean;
+  periodStart: string;
+  periodEnd: string;
+  salaryDate: string;
+}) {
+  const ringSegments = 28;
+  const barSegments = 20;
+  const completedRingSegments = Math.round((progress / 100) * ringSegments);
+  const completedBarSegments = Math.round((progress / 100) * barSegments);
+
+  return (
+    <Card className="glass-card overflow-hidden rounded-3xl p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">Current qualification period</p>
+          <h2 className="font-display text-2xl font-bold">Progress to monthly salary</h2>
+        </div>
+        <Badge variant={qualified ? "default" : "secondary"}>
+          {qualified ? "Target reached" : "In progress"}
+        </Badge>
+      </div>
+
+      <div className="mt-6 grid items-center gap-8 md:grid-cols-[220px_1fr]">
+        <div
+          className="relative mx-auto h-44 w-44"
+          role="progressbar"
+          aria-label="Recruiter salary progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+        >
+          <svg viewBox="0 0 120 120" className="h-full w-full" aria-hidden="true">
+            {Array.from({ length: ringSegments }, (_, index) => (
+              <line
+                key={index}
+                x1="60"
+                y1="8"
+                x2="60"
+                y2="18"
+                transform={`rotate(${(360 / ringSegments) * index} 60 60)`}
+                strokeWidth="5"
+                strokeLinecap="round"
+                className={
+                  index < completedRingSegments
+                    ? "stroke-cyan-500"
+                    : "stroke-slate-200 dark:stroke-slate-700"
+                }
+              />
+            ))}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="font-display text-4xl font-bold text-cyan-600">
+              {Math.round(progress)}%
+            </span>
+            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+              progress
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <p className="font-display text-lg font-semibold">
+            {qualified ? "Your monthly target is complete" : "Building toward your next R3,000"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Every eligible 30-day deposit moves your milestone forward.
+          </p>
+
+          <div
+            className="mt-6 flex gap-1"
+            role="progressbar"
+            aria-label="Deposit milestone progress"
+            aria-valuemin={0}
+            aria-valuemax={target}
+            aria-valuenow={Math.min(deposits, target)}
+          >
+            {Array.from({ length: barSegments }, (_, index) => (
+              <span
+                key={index}
+                className={`h-3 flex-1 -skew-x-[18deg] rounded-[2px] transition-colors ${
+                  index < completedBarSegments
+                    ? "bg-gradient-to-r from-cyan-500 to-teal-400"
+                    : "bg-slate-200 dark:bg-slate-700"
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 flex justify-between gap-4 text-xs text-muted-foreground">
+            <span>{money(deposits)} deposited</span>
+            <span>{money(target)} target</span>
+          </div>
+          <p className="mt-3 text-xs font-medium text-cyan-700 dark:text-cyan-300">
+            {qualified ? "Milestone achieved" : `${money(remaining)} remaining`}
+          </p>
+          <p className="mt-5 border-t pt-4 text-xs text-muted-foreground">
+            {date(periodStart)} – {date(periodEnd)} · Salary day {date(salaryDate)}
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
 

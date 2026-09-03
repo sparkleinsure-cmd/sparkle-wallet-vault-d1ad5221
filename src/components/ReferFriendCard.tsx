@@ -102,10 +102,10 @@ export function ReferFriendCard({ accountId }: { accountId: string }) {
             <BriefcaseBusiness className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <h3 className="font-display font-semibold">Permanent recruiter programme</h3>
+            <h3 className="font-display font-semibold">Recruiter Programme</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Apply for recruiter status, invite new members and track progress toward the monthly
-              R3,000 wallet credit.
+              Apply as a recruiter. Basic salary: R3,000, plus 10% on each referral&apos;s first
+              approved deposit.
             </p>
           </div>
         </div>
