@@ -9,7 +9,6 @@ import {
   Loader2,
   MailPlus,
   ShieldCheck,
-  Target,
   Users,
   WalletCards,
   type LucideIcon,
@@ -222,8 +221,9 @@ function RecruiterPage() {
             <h1 className="font-display text-3xl font-bold">Recruiter programme</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your friends-and-family referral link remains available separately on the main
-            dashboard.
+            {visibleDashboard?.application?.status === "approved"
+              ? "Approved Recruiter's Dashboard"
+              : "Apply to become an approved recruiter."}
           </p>
         </div>
 
@@ -486,8 +486,7 @@ function ApprovedDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat icon={Target} label="Deposits" value={money(Number(period.qualifyingDeposits))} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Stat icon={Users} label="Recruits" value={String(period.qualifyingRecruits)} />
         <Stat icon={WalletCards} label="Monthly wallet credit" value="R3,000" />
         <Stat
