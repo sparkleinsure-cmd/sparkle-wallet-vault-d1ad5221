@@ -16,6 +16,7 @@ import { Route as AccountDeletionRouteImport } from './routes/account-deletion'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
+import { Route as AuthenticatedRecruiterRouteImport } from './routes/_authenticated/recruiter'
 import { Route as AuthenticatedInsuranceRouteImport } from './routes/_authenticated/insurance'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCommunityRouteImport } from './routes/_authenticated/community'
@@ -55,6 +56,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRecruiterRoute = AuthenticatedRecruiterRouteImport.update({
+  id: '/recruiter',
+  path: '/recruiter',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInsuranceRoute = AuthenticatedInsuranceRouteImport.update({
   id: '/insurance',
   path: '/insurance',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof AuthenticatedCommunityRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/insurance': typeof AuthenticatedInsuranceRoute
+  '/recruiter': typeof AuthenticatedRecruiterRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/community': typeof AuthenticatedCommunityRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/insurance': typeof AuthenticatedInsuranceRoute
+  '/recruiter': typeof AuthenticatedRecruiterRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesById {
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/_authenticated/community': typeof AuthenticatedCommunityRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/insurance': typeof AuthenticatedInsuranceRoute
+  '/_authenticated/recruiter': typeof AuthenticatedRecruiterRoute
   '/auth_/callback': typeof AuthCallbackRoute
 }
 export interface FileRouteTypes {
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/dashboard'
     | '/insurance'
+    | '/recruiter'
     | '/auth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/dashboard'
     | '/insurance'
+    | '/recruiter'
     | '/auth/callback'
   id:
     | '__root__'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/_authenticated/community'
     | '/_authenticated/dashboard'
     | '/_authenticated/insurance'
+    | '/_authenticated/recruiter'
     | '/auth_/callback'
   fileRoutesById: FileRoutesById
 }
@@ -215,6 +227,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/recruiter': {
+      id: '/_authenticated/recruiter'
+      path: '/recruiter'
+      fullPath: '/recruiter'
+      preLoaderRoute: typeof AuthenticatedRecruiterRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/insurance': {
       id: '/_authenticated/insurance'
       path: '/insurance'
@@ -251,6 +270,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCommunityRoute: typeof AuthenticatedCommunityRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInsuranceRoute: typeof AuthenticatedInsuranceRoute
+  AuthenticatedRecruiterRoute: typeof AuthenticatedRecruiterRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -258,6 +278,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCommunityRoute: AuthenticatedCommunityRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInsuranceRoute: AuthenticatedInsuranceRoute,
+  AuthenticatedRecruiterRoute: AuthenticatedRecruiterRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

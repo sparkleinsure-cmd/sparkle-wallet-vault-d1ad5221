@@ -28,6 +28,8 @@ import {
   adminGetInsuranceDocumentUrl,
   adminReviewInsuranceApplication,
   adminReviewInsuranceClaim,
+  adminListRecruiterApplications,
+  adminReviewRecruiterApplication,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,7 +43,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
-import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -94,6 +96,12 @@ function AdminPage() {
   });
   const { data: insuranceApplications, refetch: refetchInsuranceApplications } = useQuery({ queryKey: ["admin-insurance-applications"], queryFn: adminListInsuranceApplications, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: insuranceClaims, refetch: refetchInsuranceClaims } = useQuery({ queryKey: ["admin-insurance-claims"], queryFn: adminListInsuranceClaims, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const { data: recruiterApplications, refetch: refetchRecruiterApplications } = useQuery({
+    queryKey: ["admin-recruiter-applications"],
+    queryFn: adminListRecruiterApplications,
+    enabled: !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
+  });
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
     queryFn: () => listWithdrawals(),
@@ -224,6 +232,34 @@ function AdminPage() {
             )}
           </Card>
         )}
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
+            <BriefcaseBusiness className="mr-2 h-5 w-5 text-violet-600" />
+            Recruiter programme applications
+            {!!recruiterApplications?.applications?.filter((application) => application.status === "pending").length && (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                {recruiterApplications.applications.filter((application) => application.status === "pending").length}
+              </span>
+            )}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Review banking confirmation, agreement acceptance and recruiter access separately from normal referrals.
+          </p>
+          {!recruiterApplications?.applications?.length ? (
+            <p className="text-sm text-muted-foreground">No recruiter applications have been submitted.</p>
+          ) : (
+            <div className="space-y-3">
+              {recruiterApplications.applications.map((application) => (
+                <RecruiterApplicationRow
+                  key={application.id}
+                  application={application}
+                  onDone={() => refetchRecruiterApplications()}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
 
         <Card className="glass-card rounded-2xl p-6">
           <h2 className="mb-1 flex items-center font-display text-lg font-semibold"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Appliance insurance applications
@@ -884,6 +920,52 @@ function WithdrawalRow({
       </div>
     </div>
   );
+}
+
+function RecruiterApplicationRow({ application, onDone }: { application: any; onDone: () => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const review = async (status: "approved" | "declined" | "suspended") => {
+    if ((status === "declined" || status === "suspended") && note.trim().length < 3) {
+      return toast.error("Add a short review reason");
+    }
+    setBusy(true);
+    try {
+      await adminReviewRecruiterApplication({
+        data: { applicationId: application.id, status, note: note.trim() || undefined },
+      });
+      toast.success(status === "approved" ? "Recruiter application approved" : status === "declined" ? "Recruiter application declined" : "Recruiter access suspended");
+      setNote("");
+      onDone();
+    } catch (error: any) { toast.error(error.message); }
+    finally { setBusy(false); }
+  };
+
+  return <div className="rounded-xl border bg-background/50 p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div className="font-semibold">{application.firstName} {application.surname} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{application.accountId}</span></div>
+        <div className="text-xs text-muted-foreground">{application.email} · {application.phone} · applied {new Date(application.appliedAt).toLocaleString()}</div>
+        <div className="mt-2 text-sm"><strong>Bank:</strong> {application.bankName} · account ending {application.bankAccountLast4}</div>
+        <div className="mt-1 text-xs text-muted-foreground">Agreement: {application.agreementVersion}</div>
+        {application.reviewNote && <p className="mt-2 rounded-lg bg-muted p-2 text-xs">{application.reviewNote}</p>}
+      </div>
+      <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize">{application.status}</span>
+    </div>
+    {application.status === "pending" && <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+      <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional approval note; required when declining" maxLength={500} />
+      <Button disabled={busy} onClick={() => review("approved")}><CheckCircle2 className="mr-2 h-4 w-4" />Approve recruiter</Button>
+      <Button disabled={busy} variant="destructive" onClick={() => review("declined")}><XCircle className="mr-2 h-4 w-4" />Decline</Button>
+    </div>}
+    {application.status === "approved" && <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto]">
+      <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Reason for suspending recruiter access" maxLength={500} />
+      <Button disabled={busy} variant="destructive" onClick={() => review("suspended")}>Suspend recruiter</Button>
+    </div>}
+    {application.status === "suspended" && <div className="mt-4 flex justify-end">
+      <Button disabled={busy} onClick={() => review("approved")}><CheckCircle2 className="mr-2 h-4 w-4" />Reactivate recruiter</Button>
+    </div>}
+  </div>;
 }
 
 function InsuranceApplicationRow({ application, openDocument, onDone }: { application:any; openDocument:(path:string)=>void; onDone:()=>void }) {

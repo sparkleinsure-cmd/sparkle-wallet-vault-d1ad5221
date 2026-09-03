@@ -9,6 +9,8 @@ const corsHeaders = {
 const CURRENCIES = new Set(["ZAR", "USD"]);
 const GROWTH_CYCLES = new Set(["15d", "30d", "180d", "360d"]);
 const ADMIN_EMAIL = "sparkleinsure@gmail.com";
+const PUBLIC_APP_ORIGIN = "https://sparkleinsure.app";
+const RECRUITER_AGREEMENT_VERSION = "recruiter-v1-2026-09-03";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -108,6 +110,12 @@ serve(async (req) => {
         const currentInstallationHash = installationId ? await sha256(installationId) : null;
         const maturity = await admin.rpc("settle_due_tranches_for_user", { p_user_id: userId });
         if (maturity.error) throw new Error(maturity.error.message);
+        const acceptedInvite = await admin
+          .from("recruiter_invites")
+          .update({ status: "accepted", accepted_at: new Date().toISOString() })
+          .eq("invited_user_id", userId)
+          .eq("status", "sent");
+        if (acceptedInvite.error) console.error("Could not mark recruiter invite accepted", acceptedInvite.error.message);
         const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
         const clientIp = req.headers.get("cf-connecting-ip") ?? forwardedFor;
         if (clientIp) {
@@ -174,6 +182,114 @@ serve(async (req) => {
           welcome_bonus_test_device: Boolean(currentInstallationHash && exemptInstallationHashes.has(currentInstallationHash)),
         } : null;
         return json({ data: { profile, wallets: walletsRes.data ?? [], transactions: txRes.data ?? [], roles: (rolesRes.data ?? []).map((r: any) => r.role), tranches: tranchesRes.data ?? [], accountFreezeDisputes: disputesRes.data ?? [] } });
+      }
+
+      case "getRecruiterDashboard": {
+        const result = await supabase.rpc("get_my_recruiter_dashboard");
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: result.data });
+      }
+
+      case "submitRecruiterApplication": {
+        const declarationAccepted = data.declarationAccepted === true;
+        const result = await supabase.rpc("submit_my_recruiter_application", {
+          p_agreement_version: RECRUITER_AGREEMENT_VERSION,
+          p_declaration_accepted: declarationAccepted,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true, applicationId: result.data } });
+      }
+
+      case "recruiterInviteMember": {
+        if (data.consentAttested !== true) {
+          throw new Error("Confirm that the person consented to receive this account invitation");
+        }
+        const recruiter = await admin
+          .from("recruiter_applications")
+          .select("id,status")
+          .eq("user_id", userId)
+          .eq("status", "approved")
+          .maybeSingle();
+        if (recruiter.error) throw new Error(recruiter.error.message);
+        if (!recruiter.data) throw new Error("An approved recruiter account is required");
+
+        const firstName = requireString(data.firstName, "first name", 1, 100);
+        const surname = requireString(data.surname, "surname", 1, 100);
+        const email = requireString(data.email, "email", 3, 320).toLowerCase();
+        const phone = requireString(data.phone, "phone number", 8, 30);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address");
+        const phoneDigits = phone.replace(/\D/g, "");
+        if (phoneDigits.length < 8 || phoneDigits.length > 15) throw new Error("Enter a valid phone number");
+
+        const since = new Date(Date.now() - 86_400_000).toISOString();
+        const inviteCount = await admin
+          .from("recruiter_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("recruiter_id", userId)
+          .gte("created_at", since);
+        if (inviteCount.error) throw new Error(inviteCount.error.message);
+        if ((inviteCount.count ?? 0) >= 25) throw new Error("Daily invitation limit reached. Try again tomorrow");
+
+        const availability = await admin.rpc("check_signup_availability", { p_email: email, p_phone: phone });
+        if (availability.error) throw new Error(availability.error.message);
+        if (availability.data?.emailExists) throw new Error("An account with this email already exists");
+        if (availability.data?.phoneExists) throw new Error("An account with this phone number already exists");
+
+        const recruiterProfile = await admin
+          .from("profiles")
+          .select("account_id")
+          .eq("id", userId)
+          .single();
+        if (recruiterProfile.error) throw new Error(recruiterProfile.error.message);
+
+        const queued = await admin
+          .from("recruiter_invites")
+          .insert({
+            recruiter_id: userId,
+            invitee_email: email,
+            invitee_first_name: firstName,
+            invitee_surname: surname,
+            invitee_phone: phone,
+            consent_attested_at: new Date().toISOString(),
+            status: "pending",
+          })
+          .select("id")
+          .single();
+        if (queued.error) {
+          if (/unique|duplicate/i.test(queued.error.message)) throw new Error("This email address has already been invited");
+          throw new Error(queued.error.message);
+        }
+
+        const invited = await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo: `${PUBLIC_APP_ORIGIN}/auth/callback?next=reset`,
+          data: {
+            first_name: firstName,
+            surname,
+            phone,
+            primary_currency: "ZAR",
+            referral_code: recruiterProfile.data.account_id,
+            recruiter_invite_id: queued.data.id,
+          },
+        });
+        if (invited.error || !invited.data.user) {
+          await admin
+            .from("recruiter_invites")
+            .update({ status: "failed", provider_error: (invited.error?.message ?? "Invitation failed").slice(0, 500) })
+            .eq("id", queued.data.id);
+          throw new Error(invited.error?.message ?? "The invitation could not be sent");
+        }
+
+        const sent = await admin
+          .from("recruiter_invites")
+          .update({
+            invited_user_id: invited.data.user.id,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            provider_error: null,
+          })
+          .eq("id", queued.data.id);
+        if (sent.error) throw new Error(sent.error.message);
+        return json({ data: { ok: true, inviteId: queued.data.id } });
       }
 
       case "recordPresence": {
@@ -768,6 +884,27 @@ serve(async (req) => {
         const profiles = ids.length ? await supabase.from("profiles").select("id, account_id, first_name, surname, email").in("id", ids) : { data: [] };
         const byId = Object.fromEntries((profiles.data ?? []).map((p: any) => [p.id, p]));
         return json({ data: { deposits: (txs.data ?? []).map((t: any) => ({ ...t, profiles: byId[t.user_id] ?? null })) } });
+      }
+
+      case "adminListRecruiterApplications": {
+        await assertAdmin(supabase, userId);
+        const result = await supabase.rpc("admin_list_recruiter_applications");
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { applications: result.data ?? [] } });
+      }
+
+      case "adminReviewRecruiterApplication": {
+        await assertAdmin(supabase, userId);
+        const applicationId = requireString(data.applicationId, "application", 36, 36);
+        const status = requireString(data.status, "decision", 7, 10);
+        if (!["approved", "declined", "suspended"].includes(status)) throw new Error("Invalid recruiter decision");
+        const result = await supabase.rpc("admin_review_recruiter_application", {
+          p_application_id: applicationId,
+          p_status: status,
+          p_note: typeof data.note === "string" ? data.note.slice(0, 500) : null,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: { ok: true } });
       }
 
       case "adminGetProofUrl": {

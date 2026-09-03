@@ -42,6 +42,16 @@ export const submitInsuranceApplication = ({ data }: Input<{ items: string[]; ba
 export const submitInsuranceClaim = ({ data }: Input<{ item: string; amount: number; quotationPath: string }>) => call<any>("submitInsuranceClaim", data);
 export const submitAccountFreezeDispute = ({ data }: Input<{ documentPath: string; statement: string }>) =>
   call<{ ok: true; disputeId: string }>("submitAccountFreezeDispute", data);
+export const getRecruiterDashboard = () => call<any>("getRecruiterDashboard");
+export const submitRecruiterApplication = ({ data }: Input<{ declarationAccepted: boolean }>) =>
+  call<{ ok: true; applicationId: string }>("submitRecruiterApplication", data);
+export const recruiterInviteMember = ({ data }: Input<{
+  firstName: string;
+  surname: string;
+  email: string;
+  phone: string;
+  consentAttested: boolean;
+}>) => call<{ ok: true; inviteId: string }>("recruiterInviteMember", data);
 
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string; requestId: string }>) => call<any>("adminCreditBonus", data);
@@ -49,6 +59,12 @@ export const adminListActiveTranches = ({ data }: Input<{ accountId: string; cur
 export const adminSeedDemo = () => call<any>("adminSeedDemo");
 export const adminListPendingKyc = () => call<any>("adminListPendingKyc");
 export const adminListPendingDeposits = () => call<any>("adminListPendingDeposits");
+export const adminListRecruiterApplications = () => call<{ applications: any[] }>("adminListRecruiterApplications");
+export const adminReviewRecruiterApplication = ({ data }: Input<{
+  applicationId: string;
+  status: "approved" | "declined" | "suspended";
+  note?: string;
+}>) => call<{ ok: true }>("adminReviewRecruiterApplication", data);
 export const adminGetProofUrl = ({ data }: Input<{ path: string }>) => call<any>("adminGetProofUrl", data);
 export const adminGetKycProofUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetKycProofUrl", data);
 export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmount?: number; note?: string; cycleCode?: string }>) => call<any>("adminVerifyDeposit", data);

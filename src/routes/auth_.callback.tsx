@@ -36,7 +36,7 @@ async function completeEmailLink() {
     if (tokenHash && type) {
       const { error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
-        type: type as "signup" | "recovery" | "email",
+        type: type as "signup" | "recovery" | "email" | "invite",
       });
       if (error) throw error;
     } else {
