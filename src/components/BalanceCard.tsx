@@ -1,5 +1,5 @@
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { ArrowRight, ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Clock, CheckCircle2, Loader2, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
@@ -29,6 +29,9 @@ export function BalanceCard({
   tranches,
   onMoveToGrowing,
   moveToGrowingDisabled = false,
+  onClearGrowing,
+  clearGrowingDisabled = false,
+  clearingGrowing = false,
 }: {
   zarBalance: number;
   usdBalance: number;
@@ -37,6 +40,9 @@ export function BalanceCard({
   tranches: Tranche[];
   onMoveToGrowing: () => void;
   moveToGrowingDisabled?: boolean;
+  onClearGrowing?: () => void;
+  clearGrowingDisabled?: boolean;
+  clearingGrowing?: boolean;
 }) {
   const { data: usdToZar = 18.5 } = useUsdToZarRate();
   const now = Date.now();
@@ -121,6 +127,20 @@ export function BalanceCard({
               {formatMoney(growing, currency)}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">Active selected cycles</div>
+            {onClearGrowing && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full gap-1 border-destructive/40 bg-background/60 px-2.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={onClearGrowing}
+                disabled={clearGrowingDisabled || growing <= 0}
+                aria-label="Clear administrator growing test balance"
+              >
+                {clearingGrowing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Clear test balance
+              </Button>
+            )}
           </div>
         </div>
 

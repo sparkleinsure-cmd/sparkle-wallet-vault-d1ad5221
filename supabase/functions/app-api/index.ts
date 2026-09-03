@@ -384,6 +384,16 @@ serve(async (req) => {
         return json({ data: moved.data });
       }
 
+      case "adminClearOwnGrowingBalance": {
+        await assertAdmin(supabase, userId);
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
+        const cleared = await supabase.rpc("admin_clear_own_growing_balance_secure", {
+          p_request_id: requestId,
+        });
+        if (cleared.error) throw new Error(cleared.error.message);
+        return json({ data: cleared.data });
+      }
+
       case "submitKycReview": {
         const bankProofPath = typeof data.bankProofPath === "string" ? requireString(data.bankProofPath, "banking proof", 3, 500) : null;
         const selfiePath = requireString(data.selfiePath, "selfie", 3, 500);

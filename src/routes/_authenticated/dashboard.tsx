@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency, submitAccountFreezeDispute } from "@/lib/app-api";
+import { adminClearOwnGrowingBalance, getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency, submitAccountFreezeDispute } from "@/lib/app-api";
 import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
@@ -51,6 +51,7 @@ function DashboardPage() {
   const [disputePdf, setDisputePdf] = useState<File | null>(null);
   const [disputeStatement, setDisputeStatement] = useState("");
   const [submittingDispute, setSubmittingDispute] = useState(false);
+  const [clearingGrowing, setClearingGrowing] = useState(false);
 
   useEffect(() => {
     const referralCode = localStorage.getItem("sparkle_referral_code");
@@ -104,6 +105,31 @@ function DashboardPage() {
       : insuranceStatus === "declined"
         ? "View your application outcome and manage your next insurance application."
         : "Apply for appliance cover or open your insurance credit dashboard.";
+
+  const clearOwnGrowingTestBalance = async () => {
+    const confirmed = window.confirm(
+      "Clear all active growing cycles on this administrator test account? Withdrawable funds will stay unchanged. This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setClearingGrowing(true);
+    try {
+      const result = await adminClearOwnGrowingBalance({ data: { requestId: crypto.randomUUID() } });
+      toast.success(
+        result.clearedCycles > 0
+          ? `Cleared ${result.clearedCycles} growing test cycle${result.clearedCycles === 1 ? "" : "s"}`
+          : "The growing balance is already zero",
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["me"] }),
+        qc.invalidateQueries({ queryKey: ["account-health"] }),
+      ]);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Unable to clear the growing test balance");
+    } finally {
+      setClearingGrowing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen pb-24">
@@ -205,6 +231,9 @@ function DashboardPage() {
           tranches={(data as any).tranches ?? []}
           onMoveToGrowing={() => setGrowOpen(true)}
           moveToGrowingDisabled={currency !== "ZAR" || withdrawable <= 0}
+          onClearGrowing={isAdmin ? clearOwnGrowingTestBalance : undefined}
+          clearGrowingDisabled={clearingGrowing}
+          clearingGrowing={clearingGrowing}
           onCurrencyChange={async (c) => {
             await setCcy({ data: { currency: c } });
             qc.invalidateQueries({ queryKey: ["me"] });
