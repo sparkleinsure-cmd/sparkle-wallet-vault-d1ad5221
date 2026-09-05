@@ -584,7 +584,7 @@ serve(async (req) => {
         const activeProfileIds = new Set((profiles.data ?? []).map((profile: any) => profile.id));
         const [wallets, tranches] = await Promise.all([
           admin.from("wallets").select("user_id,currency,balance"),
-          admin.from("deposit_tranches").select("user_id,currency,remaining,current_balance,status,maturity_date").gt("remaining", 0),
+          admin.from("deposit_tranches").select("id,user_id,currency,amount,remaining,current_balance,status,maturity_date,cycle_label,growth_cycle_code,approved").gt("remaining", 0),
         ]);
         if (wallets.error) throw new Error(wallets.error.message);
         if (tranches.error) throw new Error(tranches.error.message);
@@ -592,18 +592,33 @@ serve(async (req) => {
         const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
         for (const wallet of wallets.data ?? []) {
           if (!activeProfileIds.has(wallet.user_id)) continue;
-          const metrics = metricsByUser[wallet.user_id] ??= { balances: {}, locked: {}, growing: {} };
+          const metrics = metricsByUser[wallet.user_id] ??= { balances: {}, locked: {}, growing: {}, activeTranches: [] };
           metrics.balances[wallet.currency] = Number(wallet.balance ?? 0);
         }
         for (const tranche of tranches.data ?? []) {
           if (!activeProfileIds.has(tranche.user_id)) continue;
           if ((tranche.status ?? "locked") !== "locked") continue;
-          const metrics = metricsByUser[tranche.user_id] ??= { balances: {}, locked: {}, growing: {} };
+          const metrics = metricsByUser[tranche.user_id] ??= { balances: {}, locked: {}, growing: {}, activeTranches: [] };
           metrics.locked[tranche.currency] = (metrics.locked[tranche.currency] ?? 0) + Number(tranche.remaining ?? 0);
           metrics.growing[tranche.currency] = (metrics.growing[tranche.currency] ?? 0) + Number(tranche.current_balance ?? tranche.remaining ?? 0);
+          if (tranche.approved === true) {
+            metrics.activeTranches.push({
+              id: tranche.id,
+              currency: tranche.currency,
+              amount: Number(tranche.amount ?? 0),
+              remaining: Number(tranche.remaining ?? 0),
+              currentBalance: Number(tranche.current_balance ?? tranche.remaining ?? 0),
+              maturityDate: tranche.maturity_date,
+              cycleLabel: tranche.cycle_label ?? null,
+              growthCycleCode: tranche.growth_cycle_code ?? null,
+            });
+          }
         }
         for (const metrics of Object.values(metricsByUser) as any[]) {
           metrics.withdrawable = {};
+          metrics.activeTranches.sort((a: any, b: any) =>
+            new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime()
+          );
           for (const currency of ["ZAR", "USD"]) {
             metrics.withdrawable[currency] = Math.max(0, Number(metrics.balances[currency] ?? 0) - Number(metrics.locked[currency] ?? 0));
             totals.withdrawable[currency as "ZAR" | "USD"] += metrics.withdrawable[currency];
@@ -644,7 +659,7 @@ serve(async (req) => {
           (presence.data ?? []).map((entry: any) => [entry.user_id, entry.last_seen_at]),
         );
         const onlineCutoff = Date.now() - 2 * 60_000;
-        return json({ data: { users: (users.data ?? []).map((profile: any) => {
+        const usersByRecentActivity = (users.data ?? []).map((profile: any) => {
           const lastSeenAt = lastSeenByUser[profile.id] ?? null;
           return {
             ...profile,
@@ -652,7 +667,13 @@ serve(async (req) => {
             last_seen_at: lastSeenAt,
             is_online: Boolean(lastSeenAt && new Date(lastSeenAt).getTime() >= onlineCutoff),
           };
-        }) } });
+        }).sort((a: any, b: any) => {
+          const aLastSeen = a.last_seen_at ? new Date(a.last_seen_at).getTime() : Number.NEGATIVE_INFINITY;
+          const bLastSeen = b.last_seen_at ? new Date(b.last_seen_at).getTime() : Number.NEGATIVE_INFINITY;
+          if (aLastSeen !== bLastSeen) return bLastSeen - aLastSeen;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+        return json({ data: { users: usersByRecentActivity } });
       }
 
       case "adminSetAccountFrozen": {

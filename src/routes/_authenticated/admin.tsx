@@ -43,7 +43,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
-import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -226,7 +226,7 @@ function AdminPage() {
           <Card className="glass-card rounded-2xl p-6">
             <div className="mb-4">
               <h2 className="font-display text-lg font-semibold">Registered users</h2>
-              <p className="text-sm text-muted-foreground">Search by name, phone, email, account ID, or User ID.</p>
+              <p className="text-sm text-muted-foreground">Sorted by recent activity. Search by name, phone, email, account ID, or User ID.</p>
             </div>
             <div className="relative mb-4">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -769,11 +769,32 @@ function formatLastSeen(value?: string | null) {
   return lastSeen.toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function formatMaturityDate(value: string) {
+  const maturity = new Date(value);
+  if (Number.isNaN(maturity.getTime())) return "Date unavailable";
+  return maturity.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function getMaturityTiming(value: string) {
+  const maturity = new Date(value);
+  if (Number.isNaN(maturity.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maturityDay = new Date(maturity);
+  maturityDay.setHours(0, 0, 0, 0);
+  const days = Math.round((maturityDay.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) return { label: `${Math.abs(days)} day${days === -1 ? "" : "s"} overdue`, urgent: true };
+  if (days === 0) return { label: "Due today", urgent: true };
+  if (days === 1) return { label: "Due tomorrow", urgent: true };
+  return { label: `Due in ${days} days`, urgent: days <= 7 };
+}
+
 function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: any; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const dispute = user.latest_dispute;
+  const activeTranches = metrics?.activeTranches ?? [];
 
   const deleteUser = async () => {
     const confirmation = prompt(
@@ -843,6 +864,42 @@ function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: 
           <div className="mt-3 grid max-w-md grid-cols-2 gap-2">
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Withdrawable</div><div className="mt-0.5 text-sm font-semibold text-foreground">{formatBalanceValues(metrics?.withdrawable)}</div></div>
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Growing</div><div className="mt-0.5 text-sm font-semibold text-foreground">{formatBalanceValues(metrics?.growing)}</div></div>
+          </div>
+          <div className="mt-3 max-w-md rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <CalendarClock className="h-4 w-4 text-primary" /> Active tranches
+              </div>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                {activeTranches.length}
+              </span>
+            </div>
+            {activeTranches.length ? (
+              <div className="mt-2 space-y-2">
+                {activeTranches.map((tranche: any) => {
+                  const timing = getMaturityTiming(tranche.maturityDate);
+                  return (
+                    <div key={tranche.id} className="rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <span className="font-medium text-foreground">
+                          {tranche.cycleLabel ?? "Growth cycle"} · {formatMoney(tranche.currentBalance, tranche.currency as Currency)}
+                        </span>
+                        {timing && (
+                          <span className={timing.urgent ? "font-semibold text-amber-700 dark:text-amber-300" : "text-muted-foreground"}>
+                            {timing.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Maturity date: <span className="font-medium text-foreground">{formatMaturityDate(tranche.maturityDate)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">No active growing tranches.</p>
+            )}
           </div>
           {user.account_frozen && user.freeze_reason && (
             <p className="mt-3 text-sm"><span className="font-medium">Freeze reason:</span> {user.freeze_reason}</p>
