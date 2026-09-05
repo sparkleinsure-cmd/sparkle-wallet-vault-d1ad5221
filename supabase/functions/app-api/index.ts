@@ -579,9 +579,10 @@ serve(async (req) => {
         // A historical auth-user deletion can leave a legacy tranche behind.
         // It must never be included in an admin headline because it has no
         // current member card against which the amount can be reconciled.
-        const profiles = await admin.from("profiles").select("id").limit(10_000);
+        const profiles = await admin.from("profiles").select("id,account_id,first_name,surname,email").limit(10_000);
         if (profiles.error) throw new Error(profiles.error.message);
         const activeProfileIds = new Set((profiles.data ?? []).map((profile: any) => profile.id));
+        const profileById = Object.fromEntries((profiles.data ?? []).map((profile: any) => [profile.id, profile]));
         const [wallets, tranches] = await Promise.all([
           admin.from("wallets").select("user_id,currency,balance"),
           admin.from("deposit_tranches").select("id,user_id,currency,amount,remaining,current_balance,status,maturity_date,cycle_label,growth_cycle_code,approved").gt("remaining", 0),
@@ -590,6 +591,8 @@ serve(async (req) => {
         if (tranches.error) throw new Error(tranches.error.message);
         const metricsByUser: Record<string, any> = {};
         const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
+        const upcomingMaturities: any[] = [];
+        const maturityAlertCutoff = Date.now() + 5 * 86_400_000;
         for (const wallet of wallets.data ?? []) {
           if (!activeProfileIds.has(wallet.user_id)) continue;
           const metrics = metricsByUser[wallet.user_id] ??= { balances: {}, locked: {}, growing: {}, activeTranches: [] };
@@ -602,7 +605,7 @@ serve(async (req) => {
           metrics.locked[tranche.currency] = (metrics.locked[tranche.currency] ?? 0) + Number(tranche.remaining ?? 0);
           metrics.growing[tranche.currency] = (metrics.growing[tranche.currency] ?? 0) + Number(tranche.current_balance ?? tranche.remaining ?? 0);
           if (tranche.approved === true) {
-            metrics.activeTranches.push({
+            const activeTranche = {
               id: tranche.id,
               currency: tranche.currency,
               amount: Number(tranche.amount ?? 0),
@@ -611,7 +614,19 @@ serve(async (req) => {
               maturityDate: tranche.maturity_date,
               cycleLabel: tranche.cycle_label ?? null,
               growthCycleCode: tranche.growth_cycle_code ?? null,
-            });
+            };
+            metrics.activeTranches.push(activeTranche);
+            const maturityTime = new Date(tranche.maturity_date).getTime();
+            if (Number.isFinite(maturityTime) && maturityTime <= maturityAlertCutoff) {
+              const profile = profileById[tranche.user_id];
+              upcomingMaturities.push({
+                ...activeTranche,
+                userId: tranche.user_id,
+                accountId: profile?.account_id ?? "Unknown",
+                userName: [profile?.first_name, profile?.surname].filter(Boolean).join(" ") || "Unknown user",
+                userEmail: profile?.email ?? null,
+              });
+            }
           }
         }
         for (const metrics of Object.values(metricsByUser) as any[]) {
@@ -625,7 +640,10 @@ serve(async (req) => {
             totals.growing[currency as "ZAR" | "USD"] += Number(metrics.growing[currency] ?? 0);
           }
         }
-        return json({ data: { totals, metricsByUser } });
+        upcomingMaturities.sort((a, b) =>
+          new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime()
+        );
+        return json({ data: { totals, metricsByUser, upcomingMaturities } });
       }
 
       case "adminListUsers": {

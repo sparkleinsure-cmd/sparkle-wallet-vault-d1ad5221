@@ -4,7 +4,6 @@ import { getMe } from "@/lib/app-api";
 import {
   adminLookupUser,
   adminCreditBonus,
-  adminSeedDemo,
   adminListPendingKyc,
   adminListPendingDeposits,
   adminGetProofUrl,
@@ -38,12 +37,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
-import { ArrowLeft, Loader2, Search, Sparkles, Database, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -58,7 +58,6 @@ function AdminPage() {
   const fetchMe = getMe;
   const lookup = adminLookupUser;
   const credit = adminCreditBonus;
-  const seed = adminSeedDemo;
   const listPendingKyc = adminListPendingKyc;
   const listPending = adminListPendingDeposits;
   const getProof = adminGetProofUrl;
@@ -86,6 +85,8 @@ function AdminPage() {
   });
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const upcomingMaturities = walletOverview?.upcomingMaturities ?? [];
+  const [maturityAlertsOpen, setMaturityAlertsOpen] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showRecruiters, setShowRecruiters] = useState(false);
   const [userSearch, setUserSearch] = useState("");
@@ -180,18 +181,64 @@ function AdminPage() {
           </div>
           <Button
             variant="outline"
-            disabled
-            title="Demo seeding is disabled in production"
-            onClick={async () => {
-              try {
-                const r = await seed();
-                toast.success(r.seeded ? `Seeded ${r.seeded} demo users` : "Demo data already present");
-              } catch (e: any) { toast.error(e.message); }
-            }}
+            className={`relative ${upcomingMaturities.length ? "border-amber-500/50 bg-amber-500/10 text-amber-800 hover:bg-amber-500/15 dark:text-amber-200" : ""}`}
+            aria-label={`Maturity alerts${upcomingMaturities.length ? `, ${upcomingMaturities.length} due` : ""}`}
+            onClick={() => setMaturityAlertsOpen(true)}
           >
-            <Database className="mr-2 h-4 w-4" /> Demo seeding disabled
+            <Bell className="mr-2 h-4 w-4" /> Maturity alerts
+            {upcomingMaturities.length > 0 && (
+              <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold leading-none text-destructive-foreground">
+                {upcomingMaturities.length > 99 ? "99+" : upcomingMaturities.length}
+              </span>
+            )}
           </Button>
         </div>
+
+        <Dialog open={maturityAlertsOpen} onOpenChange={setMaturityAlertsOpen}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto rounded-2xl sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-amber-600" /> Maturity alerts
+              </DialogTitle>
+              <DialogDescription>
+                Approved active tranches that are overdue or mature within the next five days, ordered by maturity date.
+              </DialogDescription>
+            </DialogHeader>
+            {upcomingMaturities.length ? (
+              <div className="space-y-3 pt-2">
+                {upcomingMaturities.map((tranche: any) => {
+                  const timing = getMaturityTiming(tranche.maturityDate);
+                  return (
+                    <div key={tranche.id} className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="font-display font-semibold text-foreground">{tranche.userName}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            Account ID: <span className="font-mono text-foreground">{tranche.accountId}</span>
+                          </div>
+                        </div>
+                        {timing && (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                            {timing.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                        <div><span className="text-muted-foreground">Cycle:</span> <span className="font-medium">{tranche.cycleLabel ?? "Growth cycle"}</span></div>
+                        <div><span className="text-muted-foreground">Current value:</span> <span className="font-medium">{formatMoney(tranche.currentBalance, tranche.currency as Currency)}</span></div>
+                        <div className="sm:col-span-2"><span className="text-muted-foreground">Maturity date:</span> <span className="font-medium">{formatMaturityDate(tranche.maturityDate)}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-sm text-muted-foreground">
+                No active tranches are due within the next five days.
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Card
           className="glass-card flex cursor-pointer flex-wrap items-center gap-3 rounded-2xl p-5 transition-colors hover:border-primary/40"
