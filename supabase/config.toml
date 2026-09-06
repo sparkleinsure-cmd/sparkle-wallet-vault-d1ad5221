@@ -51,3 +51,6 @@ verify_jwt = false
 
 [functions.withdrawable-credit-email]
 verify_jwt = false
+
+[functions.admin-maturity-alert-email]
+verify_jwt = false
