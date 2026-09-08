@@ -1,11 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
+type Currency = "ZAR" | "USD";
+
 type MaturityTranche = {
   tranche_id: string;
   account_id: string | null;
   user_name: string;
-  currency: "ZAR" | "USD";
+  currency: Currency;
   current_balance: number | string;
   cycle_label: string;
   maturity_date: string;
@@ -18,6 +20,23 @@ type MaturityAlert = {
   tranche_count: number;
   tranches: MaturityTranche[];
 };
+
+type PendingDepositAlert = {
+  notification_id: string;
+  transaction_id: string;
+  account_id: string | null;
+  user_name: string;
+  user_email: string | null;
+  user_phone: string | null;
+  currency: Currency;
+  amount: number | string;
+  deposit_reference: string | null;
+  cycle_label: string;
+  proof_path: string;
+  submitted_at: string;
+};
+
+type AdminClient = ReturnType<typeof createClient>;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -38,7 +57,7 @@ const escapeHtml = (value: string) =>
       })[character] ?? character,
   );
 
-const formatAmount = (amount: number | string, currency: "ZAR" | "USD") =>
+const formatAmount = (amount: number | string, currency: Currency) =>
   new Intl.NumberFormat("en-ZA", {
     style: "currency",
     currency,
@@ -51,6 +70,13 @@ const formatMaturityDate = (value: string) =>
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  }).format(new Date(value));
+
+const formatSubmittedAt = (value: string) =>
+  new Intl.DateTimeFormat("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
     timeZone: "Africa/Johannesburg",
   }).format(new Date(value));
 
@@ -74,7 +100,7 @@ function maturityTiming(value: string) {
   return `Due in ${days} days`;
 }
 
-function emailContent(alert: MaturityAlert) {
+function maturityEmailContent(alert: MaturityAlert) {
   const tranches = Array.isArray(alert.tranches) ? alert.tranches : [];
   const subject = `${tranches.length} growing cycle${tranches.length === 1 ? "" : "s"} due within 5 days`;
   const textRows = tranches.map((tranche, index) =>
@@ -91,7 +117,7 @@ function emailContent(alert: MaturityAlert) {
           <p style="margin:0 0 6px"><strong>${escapeHtml(tranche.user_name)}</strong> (${escapeHtml(tranche.account_id ?? "No account ID")})</p>
           <p style="margin:0 0 6px"><strong>Cycle:</strong> ${escapeHtml(tranche.cycle_label)}</p>
           <p style="margin:0 0 6px"><strong>Current value:</strong> ${escapeHtml(formatAmount(tranche.current_balance, tranche.currency))}</p>
-          <p style="margin:0"><strong>Maturity:</strong> ${escapeHtml(formatMaturityDate(tranche.maturity_date))} · ${escapeHtml(maturityTiming(tranche.maturity_date))}</p>
+          <p style="margin:0"><strong>Maturity:</strong> ${escapeHtml(formatMaturityDate(tranche.maturity_date))} &middot; ${escapeHtml(maturityTiming(tranche.maturity_date))}</p>
         </div>`,
     )
     .join("");
@@ -119,12 +145,193 @@ function emailContent(alert: MaturityAlert) {
   };
 }
 
+function pendingDepositEmailContent(deposit: PendingDepositAlert) {
+  const accountId = deposit.account_id?.trim() || "No account ID";
+  const submittedAt = formatSubmittedAt(deposit.submitted_at);
+  const displayAmount = formatAmount(deposit.amount, deposit.currency);
+  const userEmail = deposit.user_email?.trim() || "Not provided";
+  const userPhone = deposit.user_phone?.trim() || "Not provided";
+  const reference = deposit.deposit_reference?.trim() || "Not provided";
+
+  return {
+    subject: `Pending deposit to approve - ${accountId}`,
+    text: [
+      "A member has submitted a deposit and uploaded proof of payment.",
+      "",
+      `Member: ${deposit.user_name}`,
+      `Account ID: ${accountId}`,
+      `Email: ${userEmail}`,
+      `Phone: ${userPhone}`,
+      `Amount: ${displayAmount}`,
+      `Growth cycle: ${deposit.cycle_label}`,
+      `Reference: ${reference}`,
+      `Submitted: ${submittedAt} SAST`,
+      "POP status: Uploaded",
+      "",
+      "Open the Admin Console to review the POP and approve or decline the deposit:",
+      "https://sparkleinsure.app/admin",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:580px;margin:auto">
+        <h2 style="color:#07869d">Pending deposit requires approval</h2>
+        <p>A member has submitted a deposit and uploaded proof of payment.</p>
+        <div style="border:1px solid #bae6fd;border-radius:12px;padding:16px;background:#f0f9ff">
+          <p style="margin:0 0 8px"><strong>Member:</strong> ${escapeHtml(deposit.user_name)}</p>
+          <p style="margin:0 0 8px"><strong>Account ID:</strong> ${escapeHtml(accountId)}</p>
+          <p style="margin:0 0 8px"><strong>Email:</strong> ${escapeHtml(userEmail)}</p>
+          <p style="margin:0 0 8px"><strong>Phone:</strong> ${escapeHtml(userPhone)}</p>
+          <p style="margin:0 0 8px"><strong>Amount:</strong> ${escapeHtml(displayAmount)}</p>
+          <p style="margin:0 0 8px"><strong>Growth cycle:</strong> ${escapeHtml(deposit.cycle_label)}</p>
+          <p style="margin:0 0 8px"><strong>Reference:</strong> ${escapeHtml(reference)}</p>
+          <p style="margin:0 0 8px"><strong>Submitted:</strong> ${escapeHtml(submittedAt)} SAST</p>
+          <p style="margin:0"><strong>POP status:</strong> Uploaded</p>
+        </div>
+        <p><a href="https://sparkleinsure.app/admin" style="display:inline-block;background:#07869d;color:#fff;text-decoration:none;padding:11px 16px;border-radius:10px;font-weight:bold">Review pending deposit</a></p>
+        <p style="color:#64748b;font-size:12px">This is an administrator email notification only. No SMS was sent.</p>
+      </div>`,
+  };
+}
+
+async function sendAdminEmail(
+  resendKey: string,
+  from: string,
+  recipientEmail: string,
+  idempotencyKey: string,
+  content: { subject: string; text: string; html: string },
+) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({
+      from,
+      to: [recipientEmail],
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return {
+    success: response.ok,
+    providerMessageId: response.ok && typeof payload.id === "string" ? payload.id : null,
+    error: response.ok
+      ? null
+      : `Resend ${response.status}: ${JSON.stringify(payload)}`.slice(0, 500),
+  };
+}
+
+async function processMaturityAlert(
+  admin: AdminClient,
+  resendKey: string,
+  from: string,
+  recipientEmail: string,
+) {
+  const claimed = await admin.rpc("claim_admin_maturity_alert_email");
+  if (claimed.error) throw new Error(claimed.error.message);
+  const alert = (claimed.data?.[0] ?? null) as MaturityAlert | null;
+  if (!alert) return { ok: true, emailOnly: true, kind: "maturity", processed: 0, sent: 0 };
+
+  let result: Awaited<ReturnType<typeof sendAdminEmail>>;
+  try {
+    result = await sendAdminEmail(
+      resendKey,
+      from,
+      recipientEmail,
+      `admin-maturity-alert/${alert.notification_id}`,
+      maturityEmailContent(alert),
+    );
+  } catch (error) {
+    result = {
+      success: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message.slice(0, 500) : "Email request failed",
+    };
+  }
+
+  const completed = await admin.rpc("complete_admin_maturity_alert_email", {
+    p_notification_id: alert.notification_id,
+    p_success: result.success,
+    p_provider_message_id: result.providerMessageId,
+    p_error: result.error,
+  });
+  if (completed.error) throw new Error(completed.error.message);
+
+  return {
+    ok: result.success,
+    emailOnly: true,
+    kind: "maturity",
+    processed: 1,
+    sent: result.success ? 1 : 0,
+    retrying: result.success ? 0 : 1,
+    error: result.error,
+  };
+}
+
+async function processPendingDeposits(
+  admin: AdminClient,
+  resendKey: string,
+  from: string,
+  recipientEmail: string,
+) {
+  const claimed = await admin.rpc("claim_admin_pending_deposit_emails", { p_limit: 20 });
+  if (claimed.error) throw new Error(claimed.error.message);
+
+  let sent = 0;
+  let retrying = 0;
+  for (const deposit of (claimed.data ?? []) as PendingDepositAlert[]) {
+    let result: Awaited<ReturnType<typeof sendAdminEmail>>;
+    try {
+      result = await sendAdminEmail(
+        resendKey,
+        from,
+        recipientEmail,
+        `admin-pending-deposit/${deposit.notification_id}`,
+        pendingDepositEmailContent(deposit),
+      );
+    } catch (error) {
+      result = {
+        success: false,
+        providerMessageId: null,
+        error: error instanceof Error ? error.message.slice(0, 500) : "Email request failed",
+      };
+    }
+
+    const completed = await admin.rpc("complete_admin_pending_deposit_email", {
+      p_notification_id: deposit.notification_id,
+      p_success: result.success,
+      p_provider_message_id: result.providerMessageId,
+      p_error: result.error,
+    });
+    if (completed.error) {
+      console.error("Could not complete admin deposit alert", completed.error.message);
+    }
+    if (result.success) sent += 1;
+    else retrying += 1;
+  }
+
+  return {
+    ok: retrying === 0,
+    emailOnly: true,
+    kind: "deposit",
+    processed: claimed.data?.length ?? 0,
+    sent,
+    retrying,
+  };
+}
+
 serve(async (request) => {
   if (request.method === "GET") {
     return json({
       ok: true,
       emailOnly: true,
-      schedule: "00:00 SAST",
+      schedules: {
+        maturity: "00:00 SAST",
+        pendingDeposits: "within one minute",
+      },
       configured: Boolean(
         Deno.env.get("SUPABASE_URL") &&
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") &&
@@ -143,7 +350,15 @@ serve(async (request) => {
     Deno.env.get("RESEND_FROM_EMAIL") ?? "Sparkle Insure <noreply@sparkleinsure.app>";
 
   if (!supabaseUrl || !serviceRoleKey || !resendKey) {
-    return json({ error: "Admin maturity email is not configured" }, 503);
+    return json({ error: "Admin email notifications are not configured" }, 503);
+  }
+
+  // An omitted kind remains a maturity run for compatibility with the
+  // previously deployed midnight cron request.
+  const body = await request.json().catch(() => ({}));
+  const kind = body && typeof body === "object" && "kind" in body ? body.kind : "maturity";
+  if (kind !== "maturity" && kind !== "deposit") {
+    return json({ error: "Unknown admin email notification kind" }, 400);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -151,62 +366,14 @@ serve(async (request) => {
   });
 
   try {
-    const claimed = await admin.rpc("claim_admin_maturity_alert_email");
-    if (claimed.error) throw new Error(claimed.error.message);
-    const alert = (claimed.data?.[0] ?? null) as MaturityAlert | null;
-    if (!alert) return json({ ok: true, emailOnly: true, processed: 0, sent: 0 });
-
-    const content = emailContent(alert);
-    let success = false;
-    let providerMessageId: string | null = null;
-    let deliveryError: string | null = null;
-
-    try {
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": `admin-maturity-alert/${alert.notification_id}`,
-        },
-        body: JSON.stringify({
-          from,
-          to: [recipientEmail],
-          subject: content.subject,
-          text: content.text,
-          html: content.html,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      success = response.ok;
-      providerMessageId = success && typeof payload.id === "string" ? payload.id : null;
-      deliveryError = success
-        ? null
-        : `Resend ${response.status}: ${JSON.stringify(payload)}`.slice(0, 500);
-    } catch (error) {
-      deliveryError = error instanceof Error ? error.message.slice(0, 500) : "Email request failed";
-    }
-
-    const completed = await admin.rpc("complete_admin_maturity_alert_email", {
-      p_notification_id: alert.notification_id,
-      p_success: success,
-      p_provider_message_id: providerMessageId,
-      p_error: deliveryError,
-    });
-    if (completed.error) throw new Error(completed.error.message);
-
-    return json({
-      ok: success,
-      emailOnly: true,
-      processed: 1,
-      sent: success ? 1 : 0,
-      retrying: success ? 0 : 1,
-      error: deliveryError,
-    }, success ? 200 : 502);
+    const result = kind === "deposit"
+      ? await processPendingDeposits(admin, resendKey, from, recipientEmail)
+      : await processMaturityAlert(admin, resendKey, from, recipientEmail);
+    return json(result, result.ok ? 200 : 502);
   } catch (error) {
-    console.error("Admin maturity email worker failed", error);
+    console.error(`Admin ${kind} email worker failed`, error);
     return json(
-      { error: error instanceof Error ? error.message : "Admin maturity email worker failed" },
+      { error: error instanceof Error ? error.message : `Admin ${kind} email worker failed` },
       500,
     );
   }
