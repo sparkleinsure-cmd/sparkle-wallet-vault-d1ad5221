@@ -861,6 +861,8 @@ serve(async (req) => {
         const profile = await supabase.from("profiles").select("*").eq("account_id", accountId).maybeSingle();
         if (profile.error) throw new Error(profile.error.message);
         if (!profile.data) return json({ data: { profile: null, wallets: [], transactions: [], tranches: [] } });
+        const maturity = await admin.rpc("settle_due_tranches_for_user", { p_user_id: profile.data.id });
+        if (maturity.error) throw new Error(maturity.error.message);
         const [wallets, transactions, tranches] = await Promise.all([
           supabase.from("wallets").select("*").eq("user_id", profile.data.id).order("currency"),
           supabase.from("transactions").select("*").eq("user_id", profile.data.id).order("created_at", { ascending: false }).limit(50),
@@ -913,6 +915,36 @@ serve(async (req) => {
         const tranche = await supabase.from("deposit_tranches").insert({ user_id: targetId, currency, amount, remaining: amount, current_balance: amount, status: holdRule === "instant" ? "matured" : "locked", source: "bonus", parent_tranche_id: parentTrancheId, transaction_id: tx.data?.id ?? null, note: note || null, maturity_date: maturityDate });
         if (tranche.error) throw new Error(tranche.error.message);
         return json({ data: { ok: true, balance } });
+      }
+
+      case "adminDeductWithdrawable": {
+        await assertAdmin(supabase, userId);
+        const targetUserId = requireString(data.userId, "user", 36, 36);
+        const currency = requireCurrency(data.currency);
+        const debitKind = data.debitKind === "insurance_repayment"
+          ? "insurance_repayment"
+          : data.debitKind === "account_adjustment"
+            ? "account_adjustment"
+            : null;
+        if (!debitKind) throw new Error("Invalid deduction type");
+        const resetToZero = data.resetToZero === true;
+        if (debitKind === "insurance_repayment" && (currency !== "ZAR" || resetToZero)) {
+          throw new Error("Insurance repayments must be a specific ZAR amount");
+        }
+        const amount = resetToZero ? null : requireAmount(data.amount);
+        const reason = requireString(data.reason, "deduction reason", 5, 500);
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
+        const result = await supabase.rpc("admin_debit_withdrawable_secure", {
+          p_user_id: targetUserId,
+          p_currency: currency,
+          p_amount: amount,
+          p_debit_kind: debitKind,
+          p_reason: reason,
+          p_reset_to_zero: resetToZero,
+          p_request_id: requestId,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: result.data });
       }
 
       case "adminListPendingDeposits": {

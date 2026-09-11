@@ -4,6 +4,7 @@ import { getMe } from "@/lib/app-api";
 import {
   adminLookupUser,
   adminCreditBonus,
+  adminDeductWithdrawable,
   adminListPendingKyc,
   adminListPendingDeposits,
   adminGetProofUrl,
@@ -760,10 +761,192 @@ function AdminPage() {
                 </Button>
               </div>
             </form>
+
+            <AdminWithdrawableDebitForm
+              target={target}
+              onCompleted={async () => {
+                const refreshed = await lookup({ data: { accountId: target.profile.account_id } });
+                setTarget(refreshed);
+                refetchWalletOverview();
+              }}
+            />
           </Card>
         )}
       </main>
     </div>
+  );
+}
+
+function AdminWithdrawableDebitForm({
+  target,
+  onCompleted,
+}: {
+  target: any;
+  onCompleted: () => Promise<void>;
+}) {
+  const [currency, setCurrency] = useState<Currency>("ZAR");
+  const [debitKind, setDebitKind] = useState<"insurance_repayment" | "account_adjustment">("insurance_repayment");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const requestRef = useRef<{ key: string; id: string } | null>(null);
+
+  const walletBalance = Number(
+    target.wallets.find((wallet: any) => wallet.currency === currency)?.balance ?? 0,
+  );
+  const lockedBalance = target.tranches
+    .filter((tranche: any) => tranche.currency === currency && (tranche.status ?? "locked") === "locked")
+    .reduce((sum: number, tranche: any) => sum + Number(tranche.remaining ?? 0), 0);
+  const withdrawable = Math.max(0, walletBalance - lockedBalance);
+
+  const runDebit = async (resetToZero: boolean) => {
+    const trimmedReason = reason.trim();
+    const parsedAmount = resetToZero ? undefined : Number(amount);
+    const effectiveKind = resetToZero ? "account_adjustment" : debitKind;
+
+    if (trimmedReason.length < 5) {
+      return toast.error("Provide a clear reason of at least 5 characters");
+    }
+    if (withdrawable <= 0) {
+      return toast.error(`This user has no withdrawable ${currency} funds`);
+    }
+    if (!resetToZero && (!Number.isFinite(parsedAmount) || Number(parsedAmount) <= 0)) {
+      return toast.error("Enter a valid deduction amount");
+    }
+    if (!resetToZero && Number(parsedAmount) > withdrawable) {
+      return toast.error(`Only ${formatMoney(withdrawable, currency)} is withdrawable`);
+    }
+
+    const deduction = resetToZero ? withdrawable : Number(parsedAmount);
+    const promptText = resetToZero
+      ? `Reset ${target.profile.account_id}'s entire ${formatMoney(withdrawable, currency)} withdrawable balance to zero? Locked and growing funds will not be touched.`
+      : `Deduct ${formatMoney(deduction, currency)} from ${target.profile.account_id}'s withdrawable balance? Locked and growing funds will not be touched.`;
+    if (!window.confirm(promptText)) return;
+
+    const requestKey = [
+      target.profile.id,
+      currency,
+      effectiveKind,
+      resetToZero ? "reset" : deduction.toFixed(2),
+      trimmedReason,
+    ].join(":");
+    if (requestRef.current?.key !== requestKey) {
+      requestRef.current = { key: requestKey, id: crypto.randomUUID() };
+    }
+
+    setBusy(true);
+    try {
+      const result = await adminDeductWithdrawable({
+        data: {
+          userId: target.profile.id,
+          currency,
+          amount: resetToZero ? undefined : deduction,
+          debitKind: effectiveKind,
+          reason: trimmedReason,
+          resetToZero,
+          requestId: requestRef.current.id,
+        },
+      });
+      toast.success(
+        `Deducted ${formatMoney(Number(result.deductedAmount), currency)}; withdrawable balance is now ${formatMoney(Number(result.withdrawableAfter), currency)}`,
+      );
+      setAmount("");
+      setReason("");
+      requestRef.current = null;
+      await onCompleted();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="space-y-3 border-t border-destructive/20 pt-6">
+      <div>
+        <h3 className="font-display text-base font-semibold text-destructive">Withdrawable deductions</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Available: <strong className="text-foreground">{formatMoney(withdrawable, currency)}</strong>. Deductions are audited and can never use locked or growing funds.
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <Label>Deduction type</Label>
+          <Select
+            value={debitKind}
+            onValueChange={(value) => {
+              const next = value as "insurance_repayment" | "account_adjustment";
+              setDebitKind(next);
+              if (next === "insurance_repayment") setCurrency("ZAR");
+            }}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="insurance_repayment">Insurance credit repayment</SelectItem>
+              <SelectItem value="account_adjustment">Owed funds / correction</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Currency</Label>
+          <Select
+            value={currency}
+            onValueChange={(value) => setCurrency(value as Currency)}
+            disabled={debitKind === "insurance_repayment"}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CURRENCIES.map((code) => <SelectItem key={code} value={code}>{code}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Amount</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            max={withdrawable}
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="Amount to deduct"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label>Required audit reason</Label>
+        <Textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Insurance repayment, amount owed, failed account correction, or another clear reason"
+          minLength={5}
+          maxLength={500}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          type="button"
+          variant="destructive"
+          disabled={busy || withdrawable <= 0}
+          onClick={() => runDebit(false)}
+        >
+          {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Deduct amount
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          disabled={busy || withdrawable <= 0}
+          onClick={() => runDebit(true)}
+        >
+          Reset withdrawable to zero
+        </Button>
+      </div>
+    </section>
   );
 }
 

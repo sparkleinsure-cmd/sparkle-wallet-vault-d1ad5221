@@ -55,6 +55,23 @@ export const recruiterInviteMember = ({ data }: Input<{
 
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string; requestId: string }>) => call<any>("adminCreditBonus", data);
+export const adminDeductWithdrawable = ({ data }: Input<{
+  userId: string;
+  currency: string;
+  amount?: number;
+  debitKind: "insurance_repayment" | "account_adjustment";
+  reason: string;
+  resetToZero: boolean;
+  requestId: string;
+}>) => call<{
+  ok: true;
+  replayed: boolean;
+  deductedAmount: number;
+  withdrawableBefore: number;
+  withdrawableAfter: number;
+  walletBalanceAfter: number;
+  insuranceClaimId: string | null;
+}>("adminDeductWithdrawable", data);
 export const adminListActiveTranches = ({ data }: Input<{ accountId: string; currency: string }>) => call<any>("adminListActiveTranches", data);
 export const adminSeedDemo = () => call<any>("adminSeedDemo");
 export const adminListPendingKyc = () => call<any>("adminListPendingKyc");
