@@ -500,6 +500,15 @@ serve(async (req) => {
         return json({ data: moved.data });
       }
 
+      case "resolveTransferRecipient": {
+        const recipient = requireString(data.recipient, "recipient", 3, 50);
+        const resolved = await supabase.rpc("resolve_member_transfer_recipient_secure", {
+          p_recipient: recipient,
+        });
+        if (resolved.error) throw new Error(resolved.error.message);
+        return json({ data: resolved.data });
+      }
+
       case "sendFunds": {
         const recipient = requireString(data.recipient, "recipient", 3, 50);
         const currency = requireCurrency(data.currency);

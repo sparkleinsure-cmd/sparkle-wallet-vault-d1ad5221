@@ -32,6 +32,8 @@ export const updateProfileContact = ({ data }: Input<{ phone: string; streetAddr
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<any>("requestWithdrawal", data);
 export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; requestId: string }>) => call<{ ok: true; amount: number; currency: string; cycleCode: string; cycleLabel: string; maturityDate: string; expectedAmount: number; transactionId: string }>("moveWithdrawableToGrowing", data);
+export const resolveTransferRecipient = ({ data }: Input<{ recipient: string }>) =>
+  call<{ recipientName: string; recipientAccountId: string }>("resolveTransferRecipient", data);
 export const sendFunds = ({ data }: Input<{ recipient: string; currency: string; amount: number; requestId: string }>) =>
   call<{ ok: true; replayed: boolean; status: "pending" | "completed"; transferId: string; amount: number; currency: "ZAR" | "USD"; recipientAccountId: string; recipientName: string; withdrawableAfter: number | null }>("sendFunds", data);
 export const submitKycReview = ({ data }: Input<{ selfiePath: string; faceDetected: boolean; faceConfidence: number | null; detectorVersion: "mediapipe-blazeface-short-range-v1" | "unavailable" }>) =>

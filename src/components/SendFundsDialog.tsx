@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Search, Send, UserCheck } from "lucide-react";
 import { toast } from "sonner";
-import { sendFunds } from "@/lib/app-api";
+import { resolveTransferRecipient, sendFunds } from "@/lib/app-api";
 import { CURRENCIES, formatMoney, type Currency } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,10 @@ export function SendFundsDialog({
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recipientMatch, setRecipientMatch] = useState<{
+    name: string;
+    accountId: string;
+  } | null>(null);
   const [completed, setCompleted] = useState<{
     status: "pending" | "completed";
     name: string;
@@ -51,24 +55,54 @@ export function SendFundsDialog({
     setRecipient("");
     setCurrency(defaultCurrency);
     setAmount("");
+    setRecipientMatch(null);
     setCompleted(null);
     setLoading(false);
     requestRef.current = null;
   };
 
-  const submit = async () => {
+  const validate = () => {
     const normalizedRecipient = recipient.trim();
     const value = Number(amount);
     if (normalizedRecipient.length < 3) {
-      return toast.error("Enter the recipient's User ID or registered phone number.");
+      toast.error("Enter the recipient's User ID or registered phone number.");
+      return null;
     }
     if (!Number.isFinite(value) || value < 0.01) {
-      return toast.error("Enter a valid amount to send.");
+      toast.error("Enter a valid amount to send.");
+      return null;
     }
     if (value > withdrawable[currency]) {
-      return toast.error(`Only ${formatMoney(withdrawable[currency], currency)} is withdrawable.`);
+      toast.error(`Only ${formatMoney(withdrawable[currency], currency)} is withdrawable.`);
+      return null;
     }
-    if (!window.confirm(`Send ${formatMoney(value, currency)} to ${normalizedRecipient}?`)) return;
+    return { normalizedRecipient, value };
+  };
+
+  const reviewRecipient = async () => {
+    const details = validate();
+    if (!details) return;
+    setLoading(true);
+    try {
+      const result = await resolveTransferRecipient({
+        data: { recipient: details.normalizedRecipient },
+      });
+      setRecipientMatch({
+        name: result.recipientName,
+        accountId: result.recipientAccountId,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to find that member.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submit = async () => {
+    const details = validate();
+    if (!details || !recipientMatch) return;
+    const normalizedRecipient = recipientMatch.accountId;
+    const value = details.value;
 
     const requestKey = `${normalizedRecipient.toUpperCase()}:${currency}:${value.toFixed(2)}`;
     if (requestRef.current?.key !== requestKey) {
@@ -161,6 +195,49 @@ export function SendFundsDialog({
               Done
             </Button>
           </div>
+        ) : recipientMatch ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center">
+              <UserCheck className="mx-auto h-8 w-8 text-primary" />
+              <div className="mt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Confirm recipient
+              </div>
+              <div className="mt-1 font-display text-xl font-bold">{recipientMatch.name}</div>
+              <div className="mt-1 font-mono text-sm text-muted-foreground">
+                Account ID: {recipientMatch.accountId}
+              </div>
+              <div className="mt-4 border-t border-border/60 pt-4 font-display text-2xl font-bold text-primary">
+                {formatMoney(Number(amount), currency)}
+              </div>
+            </div>
+            <p className="text-center text-xs text-muted-foreground">
+              Confirm that this is the correct person. Funds cannot be reversed automatically after
+              a completed transfer.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={() => setRecipientMatch(null)}
+              >
+                Go back
+              </Button>
+              <Button
+                type="button"
+                className="gradient-brand text-white"
+                disabled={loading}
+                onClick={submit}
+              >
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                {loading ? "Sending…" : "Confirm & send"}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             <div>
@@ -168,7 +245,10 @@ export function SendFundsDialog({
               <Input
                 id="transfer-recipient"
                 value={recipient}
-                onChange={(event) => setRecipient(event.target.value)}
+                onChange={(event) => {
+                  setRecipient(event.target.value);
+                  setRecipientMatch(null);
+                }}
                 placeholder="e.g. 7S0UMZUK or +27 82 123 4567"
                 maxLength={50}
                 autoComplete="off"
@@ -213,14 +293,14 @@ export function SendFundsDialog({
               type="button"
               className="w-full gradient-brand text-white"
               disabled={loading || withdrawable[currency] < 0.01}
-              onClick={submit}
+              onClick={reviewRecipient}
             >
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Send className="mr-2 h-4 w-4" />
+                <Search className="mr-2 h-4 w-4" />
               )}
-              {loading ? "Sending…" : "Send funds"}
+              {loading ? "Finding member…" : "Review recipient"}
             </Button>
           </div>
         )}
