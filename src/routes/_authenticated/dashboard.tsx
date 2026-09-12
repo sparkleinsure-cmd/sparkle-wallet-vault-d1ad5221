@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminClearOwnGrowingBalance, getAccountHealth, getInsuranceDashboard, getMe, setPrimaryCurrency, submitAccountFreezeDispute } from "@/lib/app-api";
+import { adminClearOwnGrowingBalance, getAccountHealth, getInsuranceDashboard, getMe, submitAccountFreezeDispute } from "@/lib/app-api";
 import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/Header";
 import { BalanceCard } from "@/components/BalanceCard";
@@ -8,6 +8,7 @@ import { TransactionsTable } from "@/components/TransactionsTable";
 import { DepositDialog } from "@/components/DepositDialog";
 import { WithdrawDialog } from "@/components/WithdrawDialog";
 import { GrowFundsDialog } from "@/components/GrowFundsDialog";
+import { SendFundsDialog } from "@/components/SendFundsDialog";
 import { StatementDialog } from "@/components/StatementDialog";
 import { AccountHealthCard } from "@/components/AccountHealthCard";
 import { ReferFriendCard } from "@/components/ReferFriendCard";
@@ -26,7 +27,6 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 function DashboardPage() {
   const fetchMe = getMe;
   const fetchHealth = getAccountHealth;
-  const setCcy = setPrimaryCurrency;
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -47,6 +47,7 @@ function DashboardPage() {
   const [depOpen, setDepOpen] = useState(false);
   const [wOpen, setWOpen] = useState(false);
   const [growOpen, setGrowOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const [sOpen, setSOpen] = useState(false);
   const [disputePdf, setDisputePdf] = useState<File | null>(null);
   const [disputeStatement, setDisputeStatement] = useState("");
@@ -88,14 +89,22 @@ function DashboardPage() {
   const isFrozen = profile.account_frozen === true;
   const pendingDispute = (data.accountFreezeDisputes ?? []).find((dispute: any) => dispute.status === "pending");
   const currency = (profile.primary_currency as Currency) ?? "ZAR";
-  const wallet = data.wallets.find((w: any) => w.currency === currency);
-  const balance = Number(wallet?.balance ?? 0);
   const isAdmin = data.roles.includes("admin");
   const tranches = ((data as any).tranches ?? []) as Array<{ currency: string; remaining: number; maturity_date: string; status?: string }>;
-  const lockedInCurrency = tranches
-    .filter((t) => t.currency === currency && (t.status ?? "locked") === "locked")
-    .reduce((s, t) => s + Number(t.remaining), 0);
-  const withdrawable = Math.max(0, balance - lockedInCurrency);
+  const balancesByCurrency: Record<Currency, number> = {
+    ZAR: Number(data.wallets.find((w: any) => w.currency === "ZAR")?.balance ?? 0),
+    USD: Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0),
+  };
+  const lockedByCurrency: Record<Currency, number> = {
+    ZAR: tranches.filter((t) => t.currency === "ZAR" && (t.status ?? "locked") === "locked").reduce((sum, t) => sum + Number(t.remaining), 0),
+    USD: tranches.filter((t) => t.currency === "USD" && (t.status ?? "locked") === "locked").reduce((sum, t) => sum + Number(t.remaining), 0),
+  };
+  const withdrawableByCurrency: Record<Currency, number> = {
+    ZAR: Math.max(0, balancesByCurrency.ZAR - lockedByCurrency.ZAR),
+    USD: Math.max(0, balancesByCurrency.USD - lockedByCurrency.USD),
+  };
+  const balance = balancesByCurrency[currency];
+  const withdrawable = withdrawableByCurrency[currency];
   const hasInsuranceApplication = Boolean(insurance?.application);
   const insuranceStatus = insurance?.application?.status as "pending" | "approved" | "declined" | undefined;
   const insuranceDescription = insuranceStatus === "pending"
@@ -225,8 +234,8 @@ function DashboardPage() {
             <span className="text-xs text-muted-foreground">Your portfolio</span>
           </div>
         <BalanceCard
-          zarBalance={Number(data.wallets.find((w: any) => w.currency === "ZAR")?.balance ?? 0)}
-          usdBalance={Number(data.wallets.find((w: any) => w.currency === "USD")?.balance ?? 0)}
+          zarBalance={balancesByCurrency.ZAR}
+          usdBalance={balancesByCurrency.USD}
           currency={currency}
           tranches={(data as any).tranches ?? []}
           onMoveToGrowing={() => setGrowOpen(true)}
@@ -234,10 +243,7 @@ function DashboardPage() {
           onClearGrowing={isAdmin ? clearOwnGrowingTestBalance : undefined}
           clearGrowingDisabled={clearingGrowing}
           clearingGrowing={clearingGrowing}
-          onCurrencyChange={async (c) => {
-            await setCcy({ data: { currency: c } });
-            qc.invalidateQueries({ queryKey: ["me"] });
-          }}
+          onSendFunds={() => setSendOpen(true)}
         />
         </section>
 
@@ -263,7 +269,7 @@ function DashboardPage() {
               <Gift className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
                 <div className="font-semibold">Claim your R10 welcome bonus</div>
-                <p className="text-sm text-muted-foreground">Take a selfie or attach a clear photo. Your bonus is added to your growing account after admin approval.</p>
+                <p className="text-sm text-muted-foreground">Take a selfie or attach a clear photo. A detected human face is approved automatically; other images go to administrator review.</p>
                 <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-300">
                   Helping someone register? Please use the account owner&apos;s own phone and browser. Welcome bonuses are limited per device, so using your phone may make their account appear to have already claimed.
                 </p>
@@ -318,6 +324,7 @@ function DashboardPage() {
       <DepositDialog open={depOpen} onOpenChange={setDepOpen} accountId={profile.account_id} userId={profile.id} />
       <WithdrawDialog open={wOpen} onOpenChange={setWOpen} currency={currency} balance={balance} withdrawable={withdrawable} bankName={profile.bank_name} accountLast4={profile.bank_account_number ? String(profile.bank_account_number).slice(-4) : null} />
       <GrowFundsDialog open={growOpen} onOpenChange={setGrowOpen} currency={currency} withdrawable={withdrawable} />
+      <SendFundsDialog open={sendOpen} onOpenChange={setSendOpen} defaultCurrency={currency} withdrawable={withdrawableByCurrency} />
       <StatementDialog
         open={sOpen}
         onOpenChange={setSOpen}

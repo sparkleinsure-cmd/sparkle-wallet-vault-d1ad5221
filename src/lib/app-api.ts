@@ -32,8 +32,10 @@ export const updateProfileContact = ({ data }: Input<{ phone: string; streetAddr
 export const creditDeposit = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; reference: string; proofUrl: string }>) => call<any>("creditDeposit", data);
 export const requestWithdrawal = ({ data }: Input<{ amount: number; currency: string; requestId: string }>) => call<any>("requestWithdrawal", data);
 export const moveWithdrawableToGrowing = ({ data }: Input<{ amount: number; currency: string; cycleCode: string; requestId: string }>) => call<{ ok: true; amount: number; currency: string; cycleCode: string; cycleLabel: string; maturityDate: string; expectedAmount: number; transactionId: string }>("moveWithdrawableToGrowing", data);
-export const submitKycReview = ({ data }: Input<{ bankProofPath?: string; selfiePath: string }>) =>
-  call<{ ok: true; status: "pending" }>("submitKycReview", data);
+export const sendFunds = ({ data }: Input<{ recipient: string; currency: string; amount: number; requestId: string }>) =>
+  call<{ ok: true; replayed: boolean; status: "pending" | "completed"; transferId: string; amount: number; currency: "ZAR" | "USD"; recipientAccountId: string; recipientName: string; withdrawableAfter: number | null }>("sendFunds", data);
+export const submitKycReview = ({ data }: Input<{ selfiePath: string; faceDetected: boolean; faceConfidence: number | null; detectorVersion: "mediapipe-blazeface-short-range-v1" | "unavailable" }>) =>
+  call<{ ok: true; status: "pending" | "verified"; faceDetected: boolean; bonusCredited: boolean; bonusCreditedAt: string | null }>("submitKycReview", data);
 export const deleteMyAccount = () => call<{ ok: true }>("deleteMyAccount");
 export const sendOtps = () => call<{ ok: true; delivered: boolean }>("sendOtps");
 export const verifyOtps = ({ data }: Input<{ emailCode: string }>) => call<{ ok: true }>("verifyOtps", data);
@@ -44,7 +46,7 @@ export const submitAccountFreezeDispute = ({ data }: Input<{ documentPath: strin
   call<{ ok: true; disputeId: string }>("submitAccountFreezeDispute", data);
 export const getRecruiterDashboard = () => call<any>("getRecruiterDashboard");
 export const submitRecruiterApplication = ({ data }: Input<{ declarationAccepted: boolean }>) =>
-  call<{ ok: true; applicationId: string }>("submitRecruiterApplication", data);
+  call<{ ok: true; approved: true; applicationId: string }>("submitRecruiterApplication", data);
 export const recruiterInviteMember = ({ data }: Input<{
   firstName: string;
   surname: string;
@@ -87,6 +89,9 @@ export const adminGetKycProofUrl = ({ data }: Input<{ path: string }>) => call<{
 export const adminVerifyDeposit = ({ data }: Input<{ txId: string; correctedAmount?: number; note?: string; cycleCode?: string }>) => call<any>("adminVerifyDeposit", data);
 export const adminDeclineDeposit = ({ data }: Input<{ txId: string; reason?: string }>) => call<any>("adminDeclineDeposit", data);
 export const adminListPendingWithdrawals = () => call<any>("adminListPendingWithdrawals");
+export const adminListPendingMemberTransfers = () => call<{ transfers: any[] }>("adminListPendingMemberTransfers");
+export const adminReviewMemberTransfer = ({ data }: Input<{ transferId: string; decision: "approved" | "declined"; note?: string }>) =>
+  call<{ ok: true; status: "completed" | "declined"; transferId: string }>("adminReviewMemberTransfer", data);
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminRefundWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminRefundWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);

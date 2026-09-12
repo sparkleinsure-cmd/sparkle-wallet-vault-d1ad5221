@@ -11,6 +11,8 @@ import {
   adminVerifyDeposit,
   adminDeclineDeposit,
   adminListPendingWithdrawals,
+  adminListPendingMemberTransfers,
+  adminReviewMemberTransfer,
   adminCompleteWithdrawal,
   adminRefundWithdrawal,
   adminListActiveTranches,
@@ -44,7 +46,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
-import { ArrowLeft, Loader2, Search, Sparkles, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock, Send } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -120,6 +122,12 @@ function AdminPage() {
   const { data: withdrawals, refetch: refetchWithdrawals } = useQuery({
     queryKey: ["admin-pending-withdrawals"],
     queryFn: () => listWithdrawals(),
+    enabled: !!me?.roles.includes("admin"),
+    refetchInterval: 30_000,
+  });
+  const { data: pendingMemberTransfers, refetch: refetchPendingMemberTransfers } = useQuery({
+    queryKey: ["admin-pending-member-transfers"],
+    queryFn: adminListPendingMemberTransfers,
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
@@ -425,6 +433,42 @@ function AdminPage() {
                       toast.success(status === "verified" ? "KYC approved" : "KYC declined");
                       refetchPendingKyc();
                     } catch (error: any) { toast.error(error.message); }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="glass-card rounded-2xl p-6">
+          <h2 className="mb-1 flex items-center font-display text-lg font-semibold">
+            <Send className="mr-2 h-4 w-4 text-amber-600" />
+            Member transfer approvals
+            {pendingMemberTransfers?.transfers.length ? (
+              <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
+                {pendingMemberTransfers.transfers.length}
+              </span>
+            ) : null}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Review transfers submitted by Sipho Mkhonza, Gift Hadebe, and Amanda Memela. Funds move only after approval.
+          </p>
+          {!pendingMemberTransfers?.transfers.length ? (
+            <p className="text-sm text-muted-foreground">No member transfers are waiting for approval.</p>
+          ) : (
+            <div className="space-y-3">
+              {pendingMemberTransfers.transfers.map((transfer: any) => (
+                <PendingMemberTransferRow
+                  key={transfer.id}
+                  transfer={transfer}
+                  onReview={async (decision, note) => {
+                    try {
+                      await adminReviewMemberTransfer({ data: { transferId: transfer.id, decision, note } });
+                      toast.success(decision === "approved" ? "Transfer approved and completed" : "Transfer declined");
+                      await Promise.all([refetchPendingMemberTransfers(), refetchWalletOverview()]);
+                    } catch (error: any) {
+                      toast.error(error.message);
+                    }
                   }}
                 />
               ))}
@@ -1200,6 +1244,53 @@ function RegisteredUserRow({ user, metrics, onChanged }: { user: any; metrics?: 
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingMemberTransferRow({
+  transfer,
+  onReview,
+}: {
+  transfer: any;
+  onReview: (decision: "approved" | "declined", note: string | undefined) => Promise<void>;
+}) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const review = async (decision: "approved" | "declined") => {
+    if (decision === "approved" && !window.confirm(
+      `Approve ${formatMoney(Number(transfer.amount), transfer.currency as Currency)} from ${transfer.senderName} to ${transfer.recipientName}?`,
+    )) return;
+    setBusy(true);
+    try {
+      await onReview(decision, note.trim() || undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-display font-semibold">{transfer.senderName} <span className="font-mono text-xs text-muted-foreground">({transfer.senderAccountId})</span></div>
+          <div className="mt-1 text-xs text-muted-foreground">{transfer.senderEmail} · {transfer.senderPhone}</div>
+          <div className="mt-3 text-sm">Sending to <strong>{transfer.recipientName}</strong> <span className="font-mono text-xs">({transfer.recipientAccountId})</span></div>
+          <div className="mt-1 text-xs text-muted-foreground">{transfer.recipientEmail} · {transfer.recipientPhone}</div>
+        </div>
+        <div className="text-right">
+          <div className="font-display text-xl font-bold text-amber-700 dark:text-amber-300">{formatMoney(Number(transfer.amount), transfer.currency as Currency)}</div>
+          <div className="text-xs text-muted-foreground">{new Date(transfer.createdAt).toLocaleString()}</div>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+        <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional review note" maxLength={300} />
+        <Button size="sm" className="gradient-brand text-white" disabled={busy} onClick={() => review("approved")}>
+          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Approve &amp; send
+        </Button>
+        <Button size="sm" variant="destructive" disabled={busy} onClick={() => review("declined")}>
+          <XCircle className="mr-2 h-4 w-4" /> Decline
+        </Button>
       </div>
     </div>
   );

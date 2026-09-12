@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { getThemePreference, setThemePreference, type ThemePreference } from "@/lib/theme";
+import { detectHumanFace } from "@/lib/face-detection";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -73,6 +74,7 @@ function SettingsPage() {
     if (selfie.size > 8 * 1024 * 1024) return toast.error("Your selfie must be under 8MB.");
     setIsSubmittingKyc(true);
     try {
+      const faceResult = await detectHumanFace(selfie);
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
       if (!userId) throw new Error("Please sign in again.");
@@ -80,8 +82,21 @@ function SettingsPage() {
       const selfiePath = `${userId}/selfie-${stamp}.${selfie.name.split(".").pop() || "jpg"}`;
       const selfieUpload = await supabase.storage.from("kyc").upload(selfiePath, selfie, { upsert: false, contentType: selfie.type || "image/jpeg" });
       if (selfieUpload.error) throw selfieUpload.error;
-      await submitKycReview({ data: { selfiePath } });
-      toast.success("Selfie submitted. Your R10 bonus will be credited after admin approval.");
+      const review = await submitKycReview({
+        data: {
+          selfiePath,
+          faceDetected: faceResult.faceDetected,
+          faceConfidence: faceResult.confidence,
+          detectorVersion: faceResult.detectorVersion,
+        },
+      });
+      if (review.status === "verified" && review.bonusCredited) {
+        toast.success("Face detected. Your selfie was approved and the R10 welcome bonus was credited.");
+      } else if (review.status === "verified") {
+        toast.success("Face detected. Your selfie was approved.");
+      } else {
+        toast.success("Selfie submitted for administrator approval.");
+      }
       setSelfie(null); setSelfiePreview(null);
       await qc.invalidateQueries({ queryKey: ["me"] });
     } catch (error: any) {
@@ -281,7 +296,7 @@ function SettingsPage() {
           </p>
         ) : (<>
           <p className="mb-4 text-sm text-muted-foreground">
-          Take a clear, front-facing selfie. An administrator must approve it before your R10 welcome bonus is credited to your growing account.
+          Take or choose a selfie as usual. If a human face is detected, it is approved automatically and the R10 welcome bonus is credited; otherwise an administrator reviews it.
           {me?.profile?.kyc_status ? ` Current status: ${me.profile.kyc_status}.` : ""}
         </p>
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">

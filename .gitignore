@@ -32,3 +32,6 @@ supabase/.temp/
 *.sln
 *.sw?
 .vercel/
+
+# Generated from the installed MediaPipe package before local/production builds.
+public/mediapipe/

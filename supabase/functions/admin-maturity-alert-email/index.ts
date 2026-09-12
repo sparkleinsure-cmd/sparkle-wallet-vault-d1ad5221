@@ -36,6 +36,21 @@ type PendingDepositAlert = {
   submitted_at: string;
 };
 
+type AutoApprovalEvent = {
+  eventType: "welcome_bonus" | "recruiter";
+  occurredAt: string;
+  accountId: string | null;
+  userName: string;
+  userEmail: string | null;
+  userPhone: string | null;
+};
+
+type AutoApprovalDigest = {
+  batch_id: string;
+  notification_ids: string[];
+  events: AutoApprovalEvent[];
+};
+
 type AdminClient = ReturnType<typeof createClient>;
 
 const json = (body: unknown, status = 200) =>
@@ -192,6 +207,80 @@ function pendingDepositEmailContent(deposit: PendingDepositAlert) {
   };
 }
 
+function autoApprovalEmailContent(digest: AutoApprovalDigest) {
+  const events = Array.isArray(digest.events) ? digest.events : [];
+  const members = events.filter((event) => event.eventType === "welcome_bonus");
+  const recruiters = events.filter((event) => event.eventType === "recruiter");
+  const summary = [
+    members.length
+      ? `${members.length} new user${members.length === 1 ? "" : "s"} approved and credited R10`
+      : "",
+    recruiters.length
+      ? `${recruiters.length} recruiter${recruiters.length === 1 ? "" : "s"} approved`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  const textSection = (title: string, rows: AutoApprovalEvent[]) =>
+    rows.length
+      ? [
+          title,
+          ...rows.map((event, index) =>
+            [
+              `${index + 1}. ${event.userName}`,
+              `   Account ID: ${event.accountId?.trim() || "Not assigned"}`,
+              `   Email: ${event.userEmail?.trim() || "Not provided"}`,
+              `   Phone: ${event.userPhone?.trim() || "Not provided"}`,
+              `   Approved: ${formatSubmittedAt(event.occurredAt)} SAST`,
+            ].join("\n"),
+          ),
+          "",
+        ].join("\n")
+      : "";
+
+  const htmlSection = (title: string, rows: AutoApprovalEvent[], detail: string) =>
+    rows.length
+      ? `<h3 style="margin:22px 0 10px">${escapeHtml(title)}</h3>${rows
+          .map(
+            (event) => `
+        <div style="border:1px solid #bae6fd;border-radius:12px;padding:14px;margin:0 0 10px;background:#f0f9ff">
+          <p style="margin:0 0 6px"><strong>${escapeHtml(event.userName)}</strong> &middot; ${escapeHtml(event.accountId?.trim() || "Not assigned")}</p>
+          <p style="margin:0 0 6px"><strong>Email:</strong> ${escapeHtml(event.userEmail?.trim() || "Not provided")}</p>
+          <p style="margin:0 0 6px"><strong>Phone:</strong> ${escapeHtml(event.userPhone?.trim() || "Not provided")}</p>
+          <p style="margin:0 0 6px"><strong>Result:</strong> ${escapeHtml(detail)}</p>
+          <p style="margin:0"><strong>Approved:</strong> ${escapeHtml(formatSubmittedAt(event.occurredAt))} SAST</p>
+        </div>`,
+          )
+          .join("")}`
+      : "";
+
+  return {
+    subject: `Automatic approvals - ${summary}`,
+    text: [
+      "Sparkle Insure automatic approval summary",
+      "",
+      summary,
+      "",
+      textSection("NEW USERS APPROVED AND CREDITED R10", members),
+      textSection("RECRUITERS APPROVED", recruiters),
+      "Open the Admin Console:",
+      "https://sparkleinsure.app/admin",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#172033;max-width:620px;margin:auto">
+        <h2 style="color:#07869d">Automatic approval summary</h2>
+        <p>${escapeHtml(summary)}.</p>
+        ${htmlSection("New users approved and credited R10", members, "Selfie face detected; R10 credited")}
+        ${htmlSection("Recruiters approved", recruiters, "Agreement and declaration accepted")}
+        <p><a href="https://sparkleinsure.app/admin" style="display:inline-block;background:#07869d;color:#fff;text-decoration:none;padding:11px 16px;border-radius:10px;font-weight:bold">Open Admin Console</a></p>
+        <p style="color:#64748b;font-size:12px">This is an administrator email notification only.</p>
+      </div>`,
+  };
+}
+
 async function sendAdminEmail(
   resendKey: string,
   from: string,
@@ -323,6 +412,55 @@ async function processPendingDeposits(
   };
 }
 
+async function processAutoApprovals(
+  admin: AdminClient,
+  resendKey: string,
+  from: string,
+  recipientEmail: string,
+) {
+  const claimed = await admin.rpc("claim_admin_auto_approval_digest", { p_limit: 100 });
+  if (claimed.error) throw new Error(claimed.error.message);
+  const digest = (claimed.data?.[0] ?? null) as AutoApprovalDigest | null;
+  if (!digest || !Array.isArray(digest.events) || digest.events.length === 0) {
+    return { ok: true, emailOnly: true, kind: "approval", processed: 0, sent: 0 };
+  }
+
+  let result: Awaited<ReturnType<typeof sendAdminEmail>>;
+  try {
+    result = await sendAdminEmail(
+      resendKey,
+      from,
+      recipientEmail,
+      `admin-auto-approval/${digest.batch_id}`,
+      autoApprovalEmailContent(digest),
+    );
+  } catch (error) {
+    result = {
+      success: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message.slice(0, 500) : "Email request failed",
+    };
+  }
+
+  const completed = await admin.rpc("complete_admin_auto_approval_digest", {
+    p_notification_ids: digest.notification_ids,
+    p_success: result.success,
+    p_provider_message_id: result.providerMessageId,
+    p_error: result.error,
+  });
+  if (completed.error) throw new Error(completed.error.message);
+
+  return {
+    ok: result.success,
+    emailOnly: true,
+    kind: "approval",
+    processed: digest.events.length,
+    sent: result.success ? 1 : 0,
+    retrying: result.success ? 0 : digest.events.length,
+    error: result.error,
+  };
+}
+
 serve(async (request) => {
   if (request.method === "GET") {
     return json({
@@ -331,11 +469,12 @@ serve(async (request) => {
       schedules: {
         maturity: "00:00 SAST",
         pendingDeposits: "within one minute",
+        autoApprovals: "within one minute",
       },
       configured: Boolean(
         Deno.env.get("SUPABASE_URL") &&
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") &&
-          Deno.env.get("RESEND_API_KEY"),
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") &&
+        Deno.env.get("RESEND_API_KEY"),
       ),
     });
   }
@@ -346,8 +485,7 @@ serve(async (request) => {
   const resendKey = Deno.env.get("RESEND_API_KEY");
   const recipientEmail =
     Deno.env.get("ADMIN_NOTIFICATION_EMAIL")?.trim() || "sparkleinsure@gmail.com";
-  const from =
-    Deno.env.get("RESEND_FROM_EMAIL") ?? "Sparkle Insure <noreply@sparkleinsure.app>";
+  const from = Deno.env.get("RESEND_FROM_EMAIL") ?? "Sparkle Insure <noreply@sparkleinsure.app>";
 
   if (!supabaseUrl || !serviceRoleKey || !resendKey) {
     return json({ error: "Admin email notifications are not configured" }, 503);
@@ -357,7 +495,7 @@ serve(async (request) => {
   // previously deployed midnight cron request.
   const body = await request.json().catch(() => ({}));
   const kind = body && typeof body === "object" && "kind" in body ? body.kind : "maturity";
-  if (kind !== "maturity" && kind !== "deposit") {
+  if (kind !== "maturity" && kind !== "deposit" && kind !== "approval" && kind !== "routine") {
     return json({ error: "Unknown admin email notification kind" }, 400);
   }
 
@@ -366,9 +504,24 @@ serve(async (request) => {
   });
 
   try {
-    const result = kind === "deposit"
-      ? await processPendingDeposits(admin, resendKey, from, recipientEmail)
-      : await processMaturityAlert(admin, resendKey, from, recipientEmail);
+    const result = kind === "routine"
+      ? await (async () => {
+          const deposits = await processPendingDeposits(admin, resendKey, from, recipientEmail);
+          const approvals = await processAutoApprovals(admin, resendKey, from, recipientEmail);
+          return {
+            ok: deposits.ok && approvals.ok,
+            emailOnly: true,
+            kind: "routine",
+            processed: deposits.processed + approvals.processed,
+            sent: deposits.sent + approvals.sent,
+            retrying: deposits.retrying + (approvals.retrying ?? 0),
+          };
+        })()
+      : kind === "deposit"
+        ? await processPendingDeposits(admin, resendKey, from, recipientEmail)
+        : kind === "approval"
+          ? await processAutoApprovals(admin, resendKey, from, recipientEmail)
+          : await processMaturityAlert(admin, resendKey, from, recipientEmail);
     return json(result, result.ok ? 200 : 502);
   } catch (error) {
     console.error(`Admin ${kind} email worker failed`, error);

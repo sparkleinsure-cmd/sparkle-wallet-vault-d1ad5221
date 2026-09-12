@@ -197,7 +197,7 @@ serve(async (req) => {
           p_declaration_accepted: declarationAccepted,
         });
         if (result.error) throw new Error(result.error.message);
-        return json({ data: { ok: true, applicationId: result.data } });
+        return json({ data: { ok: true, approved: true, applicationId: result.data } });
       }
 
       case "recruiterInviteMember": {
@@ -500,6 +500,44 @@ serve(async (req) => {
         return json({ data: moved.data });
       }
 
+      case "sendFunds": {
+        const recipient = requireString(data.recipient, "recipient", 3, 50);
+        const currency = requireCurrency(data.currency);
+        const amount = requireAmount(data.amount);
+        const requestId = requireString(data.requestId, "request ID", 36, 36);
+        const sent = await supabase.rpc("send_member_withdrawable_funds_secure", {
+          p_recipient: recipient,
+          p_currency: currency,
+          p_amount: amount,
+          p_request_id: requestId,
+        });
+        if (sent.error) throw new Error(sent.error.message);
+        return json({ data: sent.data });
+      }
+
+      case "adminListPendingMemberTransfers": {
+        await assertAdmin(supabase, userId);
+        const pending = await supabase.rpc("admin_list_pending_member_transfers");
+        if (pending.error) throw new Error(pending.error.message);
+        return json({ data: pending.data });
+      }
+
+      case "adminReviewMemberTransfer": {
+        await assertAdmin(supabase, userId);
+        const transferId = requireString(data.transferId, "transfer", 36, 36);
+        const decision = data.decision === "approved" || data.decision === "declined"
+          ? data.decision
+          : (() => { throw new Error("Invalid transfer decision"); })();
+        const note = typeof data.note === "string" ? data.note.trim().slice(0, 300) : null;
+        const reviewed = await supabase.rpc("admin_review_member_transfer_secure", {
+          p_transfer_id: transferId,
+          p_decision: decision,
+          p_note: note || null,
+        });
+        if (reviewed.error) throw new Error(reviewed.error.message);
+        return json({ data: reviewed.data });
+      }
+
       case "adminClearOwnGrowingBalance": {
         await assertAdmin(supabase, userId);
         const requestId = requireString(data.requestId, "request ID", 36, 36);
@@ -511,11 +549,18 @@ serve(async (req) => {
       }
 
       case "submitKycReview": {
-        const bankProofPath = typeof data.bankProofPath === "string" ? requireString(data.bankProofPath, "banking proof", 3, 500) : null;
         const selfiePath = requireString(data.selfiePath, "selfie", 3, 500);
-        const { error } = await supabase.rpc("submit_kyc_review", { p_proof_path: bankProofPath, p_selfie_path: selfiePath });
-        if (error) throw new Error(error.message);
-        return json({ data: { ok: true, status: "pending" } });
+        const faceDetected = data.faceDetected === true;
+        const faceConfidence = faceDetected && Number.isFinite(Number(data.faceConfidence)) ? Number(data.faceConfidence) : null;
+        const detectorVersion = data.detectorVersion === "mediapipe-blazeface-short-range-v1" ? data.detectorVersion : "unavailable";
+        const result = await supabase.rpc("submit_kyc_review_auto", {
+          p_selfie_path: selfiePath,
+          p_face_detected: faceDetected,
+          p_face_confidence: faceConfidence,
+          p_detector_version: detectorVersion,
+        });
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: result.data });
       }
 
       case "deleteMyAccount": {

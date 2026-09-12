@@ -1,6 +1,5 @@
-import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
-import { ArrowRight, ChevronDown, ChevronUp, Clock, CheckCircle2, Loader2, Trash2 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatMoney, type Currency } from "@/lib/currency";
+import { ArrowRight, ChevronDown, ChevronUp, Clock, CheckCircle2, Loader2, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUsdToZarRate, convertTotal } from "@/lib/exchange-rate";
 import { useState } from "react";
@@ -25,7 +24,7 @@ export function BalanceCard({
   zarBalance,
   usdBalance,
   currency,
-  onCurrencyChange,
+  onSendFunds,
   tranches,
   onMoveToGrowing,
   moveToGrowingDisabled = false,
@@ -36,7 +35,7 @@ export function BalanceCard({
   zarBalance: number;
   usdBalance: number;
   currency: Currency;
-  onCurrencyChange: (c: Currency) => void;
+  onSendFunds: () => void;
   tranches: Tranche[];
   onMoveToGrowing: () => void;
   moveToGrowingDisabled?: boolean;
@@ -82,18 +81,9 @@ export function BalanceCard({
               Total balance · 1 USD = {usdToZar.toFixed(2)} ZAR
             </div>
           </div>
-          <Select value={currency} onValueChange={(v) => onCurrencyChange(v as Currency)}>
-            <SelectTrigger className="w-28 shrink-0 bg-background/70">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CURRENCIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {CURRENCY_META[c].symbol} {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Button type="button" variant="outline" className="shrink-0 bg-background/70" onClick={onSendFunds}>
+            <Send className="mr-2 h-4 w-4" /> Send funds
+          </Button>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3">

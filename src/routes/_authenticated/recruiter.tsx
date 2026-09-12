@@ -242,10 +242,10 @@ function RecruiterPage() {
             onSubmitted={async () => {
               if (isLocalPreview) {
                 setPreviewApplication({
-                  id: "preview-pending",
-                  status: "pending",
+                  id: "preview-approved",
+                  status: "approved",
                   appliedAt: new Date().toISOString(),
-                  approvedAt: null,
+                  approvedAt: new Date().toISOString(),
                   reviewNote: null,
                   bankName: String(me.profile.bank_name ?? "Registered bank"),
                   bankAccountLast4: String(me.profile.bank_account_number ?? "0000").slice(-4),
@@ -310,7 +310,7 @@ function RecruiterApplication({
     try {
       if (previewOnly) {
         await onSubmitted();
-        toast.success("Preview: recruiter application moved to administrator review");
+        toast.success("Preview: recruiter application approved");
         return;
       }
       if (!hasRegisteredBank) {
@@ -319,7 +319,7 @@ function RecruiterApplication({
         });
       }
       await submitRecruiterApplication({ data: { declarationAccepted: true } });
-      toast.success("Recruiter application submitted for administrator review");
+      toast.success("Recruiter agreement accepted. Your recruiter access is approved.");
       await onSubmitted();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Application could not be submitted");
@@ -333,8 +333,8 @@ function RecruiterApplication({
       <Card className="glass-card rounded-3xl p-6">
         <h2 className="font-display text-xl font-semibold">Apply to become a recruiter</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Applications require administrator approval. Approved recruiters begin qualifying from
-          their first complete 29th–27th period.
+          Accept the agreement and declaration to activate recruiter access. Approved recruiters
+          begin qualifying from their first complete 29th–27th period.
         </p>
         {previous?.reviewNote && (
           <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">

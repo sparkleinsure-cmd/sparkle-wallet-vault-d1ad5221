@@ -91,6 +91,7 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
         {filtered.map((t) => {
           const isTransfer = t.type === "transfer";
           const isDebit = t.type === "withdrawal" || t.type === "fee" || Number(t.amount) < 0;
+          const isPeerTransfer = isTransfer && /^(Sent to|Received from) /.test(t.description ?? "");
           const Icon =
             t.type === "deposit"
               ? ArrowDownToLine
@@ -101,8 +102,8 @@ export function TransactionsTable({ transactions }: { transactions: Tx[] }) {
                 : t.type === "fee"
                   ? CircleDollarSign
                   : Sparkles;
-          const sign = isTransfer ? "" : isDebit ? "-" : "+";
-          const color = isTransfer ? "text-sky-600" : isDebit ? "text-rose-600" : "text-emerald-600";
+          const sign = isPeerTransfer ? (isDebit ? "-" : "+") : isTransfer ? "" : isDebit ? "-" : "+";
+          const color = isPeerTransfer ? (isDebit ? "text-rose-600" : "text-emerald-600") : isTransfer ? "text-sky-600" : isDebit ? "text-rose-600" : "text-emerald-600";
           const statusLabel = transactionStatus(t);
           return (
             <button
@@ -156,6 +157,7 @@ function transactionStatus(transaction: Tx) {
 
 function TransactionDetails({ transaction }: { transaction: Tx }) {
   const isTransfer = transaction.type === "transfer";
+  const isPeerTransfer = isTransfer && /^(Sent to|Received from) /.test(transaction.description ?? "");
   const isDebit =
     transaction.type === "withdrawal" ||
     transaction.type === "fee" ||
@@ -169,9 +171,9 @@ function TransactionDetails({ transaction }: { transaction: Tx }) {
       </DialogHeader>
       <div className="mt-2 rounded-2xl border bg-muted/30 p-4">
         <div
-          className={`text-2xl font-bold tabular-nums ${isTransfer ? "text-sky-600" : isDebit ? "text-rose-600" : "text-emerald-600"}`}
+          className={`text-2xl font-bold tabular-nums ${isPeerTransfer ? (isDebit ? "text-rose-600" : "text-emerald-600") : isTransfer ? "text-sky-600" : isDebit ? "text-rose-600" : "text-emerald-600"}`}
         >
-          {isTransfer ? "" : isDebit ? "-" : "+"}
+          {isPeerTransfer ? (isDebit ? "-" : "+") : isTransfer ? "" : isDebit ? "-" : "+"}
           {formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency)}
         </div>
         <div className="mt-1 text-sm font-medium">
