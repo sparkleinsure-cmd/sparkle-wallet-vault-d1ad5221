@@ -89,8 +89,17 @@ function AdminPage() {
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const upcomingMaturities = walletOverview?.upcomingMaturities ?? [];
+  const userMetrics = Object.entries(walletOverview?.metricsByUser ?? {});
+  const activeCycleUserCount = userMetrics.filter(
+    ([, metrics]: [string, any]) => (metrics?.activeTranches?.length ?? 0) > 0,
+  ).length;
+  const activeCycleCount = userMetrics.reduce(
+    (count, [, metrics]: [string, any]) => count + (metrics?.activeTranches?.length ?? 0),
+    0,
+  );
   const [maturityAlertsOpen, setMaturityAlertsOpen] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [userView, setUserView] = useState<"all" | "active-cycles">("all");
   const [showRecruiters, setShowRecruiters] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [recruiterSearch, setRecruiterSearch] = useState("");
@@ -100,6 +109,11 @@ function AdminPage() {
     enabled: showUsers && !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
+  const visibleRegisteredUsers = (registeredUsers?.users ?? []).filter(
+    (user) =>
+      userView === "all" ||
+      (walletOverview?.metricsByUser?.[user.id]?.activeTranches?.length ?? 0) > 0,
+  );
   const { data: insuranceApplications, refetch: refetchInsuranceApplications } = useQuery({ queryKey: ["admin-insurance-applications"], queryFn: adminListInsuranceApplications, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: insuranceClaims, refetch: refetchInsuranceClaims } = useQuery({ queryKey: ["admin-insurance-claims"], queryFn: adminListInsuranceClaims, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: recruiterApplications, refetch: refetchRecruiterApplications } = useQuery({
@@ -272,6 +286,13 @@ function AdminPage() {
           </div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
+          <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2 sm:min-w-36 sm:flex-none">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Users in active cycles</div>
+            <div className="mt-1 text-sm font-semibold text-amber-700 dark:text-amber-300">{activeCycleUserCount}</div>
+            <div className="text-[10px] text-muted-foreground">
+              {activeCycleCount} active {activeCycleCount === 1 ? "cycle" : "cycles"}
+            </div>
+          </div>
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             {showUsers ? "Hide users" : "View users"}
             {showUsers ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
@@ -280,9 +301,20 @@ function AdminPage() {
 
         {showUsers && (
           <Card className="glass-card rounded-2xl p-6">
-            <div className="mb-4">
-              <h2 className="font-display text-lg font-semibold">Registered users</h2>
-              <p className="text-sm text-muted-foreground">Sorted by recent activity. Search by name, phone, email, account ID, or User ID.</p>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="font-display text-lg font-semibold">Registered users</h2>
+                <p className="text-sm text-muted-foreground">Sorted by recent activity. Search by name, phone, email, account ID, or User ID.</p>
+              </div>
+              <Select value={userView} onValueChange={(value) => setUserView(value as "all" | "active-cycles")}>
+                <SelectTrigger className="w-full sm:w-48" aria-label="Filter registered users">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All users</SelectItem>
+                  <SelectItem value="active-cycles">Active cycles only</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="relative mb-4">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -290,11 +322,15 @@ function AdminPage() {
             </div>
             {usersLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-            ) : !registeredUsers?.users.length ? (
-              <p className="py-4 text-sm text-muted-foreground">No registered users match this search.</p>
+            ) : !visibleRegisteredUsers.length ? (
+              <p className="py-4 text-sm text-muted-foreground">
+                {userView === "active-cycles"
+                  ? "No users with active cycles match this search."
+                  : "No registered users match this search."}
+              </p>
             ) : (
               <div className="space-y-3">
-                {registeredUsers.users.map((user) => (
+                {visibleRegisteredUsers.map((user) => (
                   <RegisteredUserRow key={user.id} user={user} metrics={walletOverview?.metricsByUser?.[user.id]} onChanged={() => { refetchUsers(); refetchWalletOverview(); }} />
                 ))}
               </div>
