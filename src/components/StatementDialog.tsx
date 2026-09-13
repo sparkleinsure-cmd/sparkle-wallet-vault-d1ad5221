@@ -6,6 +6,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import { formatMoney, type Currency } from "@/lib/currency";
+import { isPeerTransfer, isTransactionDebit } from "@/lib/transaction-display";
 import { getStatementTransactions } from "@/lib/app-api";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
@@ -19,13 +20,17 @@ type Tx = {
   amount: number;
   status: string;
   description: string | null;
+  reference?: string | null;
   created_at: string;
 };
 
-const isDebit = (transaction: Tx) => transaction.type === "withdrawal" || transaction.type === "fee" || Number(transaction.amount) < 0;
 const signedAmount = (transaction: Tx) => {
-  if (transaction.type === "transfer" && !/^(Sent to|Received from) /.test(transaction.description ?? "")) return formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency);
-  const sign = isDebit(transaction) ? "-" : "+";
+  if (transaction.type === "transfer" && !isPeerTransfer(transaction))
+    return formatMoney(
+      Math.abs(Number(transaction.amount)),
+      transaction.currency as Currency,
+    );
+  const sign = isTransactionDebit(transaction) ? "-" : "+";
   return `${sign}${formatMoney(Math.abs(Number(transaction.amount)), transaction.currency as Currency)}`;
 };
 
