@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "@/lib/app-api";
 import {
@@ -32,6 +32,7 @@ import {
   adminReviewInsuranceClaim,
   adminListRecruiterApplications,
   adminReviewRecruiterApplication,
+  adminListSupportConversations,
 } from "@/lib/app-api";
 import { AppHeader } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,7 +47,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CURRENCIES, CURRENCY_META, formatMoney, type Currency } from "@/lib/currency";
 import { GROWTH_CYCLES, validateCycleAmount, type GrowthCycleCode } from "@/lib/growth-cycles";
-import { ArrowLeft, Loader2, Search, Sparkles, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Sparkles, FileDown, CheckCircle2, Bell, XCircle, Flag, Trash2, Users, ShieldCheck, ChevronDown, ChevronUp, LockKeyhole, UnlockKeyhole, BriefcaseBusiness, CalendarClock, Send, Headphones } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 
@@ -88,6 +89,8 @@ function AdminPage() {
   });
   const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const { data: supportInbox } = useQuery({ queryKey: ["admin-support-inbox"], queryFn: adminListSupportConversations, enabled: !!me?.roles.includes("admin"), refetchInterval: 10_000 });
+  const waitingSupportCount = (supportInbox?.conversations ?? []).filter((conversation) => conversation.status === "waiting_for_admin").length;
   const upcomingMaturities = walletOverview?.upcomingMaturities ?? [];
   const userMetrics = Object.entries(walletOverview?.metricsByUser ?? {});
   const activeCycleUserCount = userMetrics.filter(
@@ -337,6 +340,20 @@ function AdminPage() {
             )}
           </Card>
         )}
+
+        <Card className="glass-card flex flex-wrap items-center gap-4 rounded-2xl p-5">
+          <div className="rounded-full bg-orange-500/15 p-3"><Headphones className="h-5 w-5 text-orange-500" /></div>
+          <div className="min-w-48 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-lg font-semibold">Support inbox</h2>
+              {waitingSupportCount > 0 && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">{waitingSupportCount} waiting for human</span>}
+            </div>
+            <p className="text-sm text-muted-foreground">Review Mandy’s conversations and reply directly to members who request human support.</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/admin-support"><Headphones className="mr-2 h-4 w-4" /> Open support inbox</Link>
+          </Button>
+        </Card>
 
         <Card
           className="glass-card flex cursor-pointer flex-wrap items-center gap-3 rounded-2xl p-5 transition-colors hover:border-violet-500/40"

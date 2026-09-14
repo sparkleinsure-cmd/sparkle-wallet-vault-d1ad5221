@@ -57,6 +57,42 @@ export const recruiterInviteMember = ({ data }: Input<{
   consentAttested: boolean;
 }>) => call<{ ok: true; inviteId: string }>("recruiterInviteMember", data);
 
+export type SupportMessage = {
+  id: string;
+  senderType: "user" | "mandy" | "admin" | "system";
+  body: string;
+  aiModel: string | null;
+  createdAt: string;
+};
+
+export type MemberSupportThread = {
+  conversation: {
+    id: string;
+    status: "ai" | "waiting_for_admin" | "admin_active" | "closed";
+    humanRequestedAt: string | null;
+    updatedAt: string;
+  };
+  messages: SupportMessage[];
+};
+
+export type AdminSupportConversation = {
+  id: string;
+  userId: string;
+  status: MemberSupportThread["conversation"]["status"];
+  unreadByAdmin: number;
+  humanRequestedAt: string | null;
+  lastMessageAt: string;
+  memberName: string;
+  accountId: string;
+  email: string | null;
+  latestMessage: Pick<SupportMessage, "senderType" | "body" | "createdAt"> | null;
+};
+
+export const getSupportConversation = () => call<MemberSupportThread>("getSupportConversation");
+export const sendSupportMessage = ({ data }: Input<{ message: string; requestId: string }>) =>
+  call<MemberSupportThread>("sendSupportMessage", data);
+export const requestSupportHuman = () => call<MemberSupportThread>("requestSupportHuman");
+
 export const adminLookupUser = ({ data }: Input<{ accountId: string }>) => call<any>("adminLookupUser", data);
 export const adminCreditBonus = ({ data }: Input<{ accountId: string; currency: string; amount: number; note?: string; holdRule: "attach" | "instant"; parentTrancheId?: string; requestId: string }>) => call<any>("adminCreditBonus", data);
 export const adminDeductWithdrawable = ({ data }: Input<{
@@ -117,3 +153,11 @@ export const adminListInsuranceClaims = () => call<any>("adminListInsuranceClaim
 export const adminGetInsuranceDocumentUrl = ({ data }: Input<{ path: string }>) => call<{ url: string }>("adminGetInsuranceDocumentUrl", data);
 export const adminReviewInsuranceApplication = ({ data }: Input<{ applicationId: string; status: "approved" | "declined"; creditAmount?: number; note?: string }>) => call<{ ok: true }>("adminReviewInsuranceApplication", data);
 export const adminReviewInsuranceClaim = ({ data }: Input<{ claimId: string; status: "approved" | "declined"; approvedAmount?: number; note?: string }>) => call<{ ok: true }>("adminReviewInsuranceClaim", data);
+export const adminListSupportConversations = () =>
+  call<{ conversations: AdminSupportConversation[] }>("adminListSupportConversations");
+export const adminGetSupportConversation = ({ data }: Input<{ conversationId: string }>) =>
+  call<any>("adminGetSupportConversation", data);
+export const adminSendSupportReply = ({ data }: Input<{ conversationId: string; message: string }>) =>
+  call<{ ok: true }>("adminSendSupportReply", data);
+export const adminCloseSupportConversation = ({ data }: Input<{ conversationId: string }>) =>
+  call<{ ok: true }>("adminCloseSupportConversation", data);
