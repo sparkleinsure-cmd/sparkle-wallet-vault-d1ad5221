@@ -4,6 +4,15 @@ import { Button } from "@/components/ui/button";
 import { ShieldCheck, Sparkles, Wallet, Globe2, Lock, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    scripts: [
+      {
+        async: true,
+        src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8145507994796327",
+        crossOrigin: "anonymous",
+      },
+    ],
+  }),
   component: Index,
 });
 
