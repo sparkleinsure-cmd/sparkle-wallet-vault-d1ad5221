@@ -87,8 +87,8 @@ function AdminPage() {
     enabled: !!me?.roles.includes("admin"),
     refetchInterval: 30_000,
   });
-  const { data: userCount } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
-  const { data: walletOverview, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const { data: userCount, isError: userCountError } = useQuery({ queryKey: ["admin-user-count"], queryFn: adminGetUserCount, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
+  const { data: walletOverview, isError: walletOverviewError, refetch: refetchWalletOverview } = useQuery({ queryKey: ["admin-wallet-overview"], queryFn: adminGetWalletOverview, enabled: !!me?.roles.includes("admin"), refetchInterval: 30_000 });
   const { data: supportInbox } = useQuery({ queryKey: ["admin-support-inbox"], queryFn: adminListSupportConversations, enabled: !!me?.roles.includes("admin"), refetchInterval: 10_000 });
   const waitingSupportCount = (supportInbox?.conversations ?? []).filter((conversation) => conversation.status === "waiting_for_admin").length;
   const upcomingMaturities = walletOverview?.upcomingMaturities ?? [];
@@ -106,7 +106,7 @@ function AdminPage() {
   const [showRecruiters, setShowRecruiters] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [recruiterSearch, setRecruiterSearch] = useState("");
-  const { data: registeredUsers, isFetching: usersLoading, refetch: refetchUsers } = useQuery({
+  const { data: registeredUsers, isLoading: usersLoading, isError: usersError, refetch: refetchUsers } = useQuery({
     queryKey: ["admin-users", userSearch],
     queryFn: () => adminListUsers({ data: { search: userSearch } }),
     enabled: showUsers && !!me?.roles.includes("admin"),
@@ -282,10 +282,18 @@ function AdminPage() {
           <div className="rounded-full bg-primary/15 p-3"><Users className="h-5 w-5 text-primary" /></div>
           <div className="min-w-32 flex-1">
             <div className="text-sm text-muted-foreground">Total registered users</div>
-            <div className="font-display text-3xl font-bold">{userCount?.count ?? "—"}</div>
+            <div className="font-display text-3xl font-bold">{userCountError ? "Unavailable" : userCount?.count ?? "—"}</div>
+            {userCount?.authUserCount != null && userCount.authUserCount !== userCount.count && (
+              <div className="text-xs text-amber-600">
+                Auth accounts: {userCount.authUserCount} · profiles: {userCount.count}
+              </div>
+            )}
             <div className="mt-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-              ({userCount?.onlineCount ?? 0} {(userCount?.onlineCount ?? 0) === 1 ? "user" : "users"} online)
+              {userCountError ? "Could not refresh user activity" : userCount
+                ? `(${userCount.onlineCount} ${userCount.onlineCount === 1 ? "user" : "users"} online)`
+                : "Loading activity…"}
             </div>
+            <div className="text-xs text-muted-foreground">Online means seen in the last 2 minutes.</div>
           </div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total withdrawable</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.withdrawable)}</div></div>
           <div className="min-w-[calc(50%-0.375rem)] flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2 sm:min-w-32 sm:flex-none"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total growing</div><div className="mt-1 text-sm font-semibold">{formatBalanceValues(walletOverview?.totals?.growing)}</div></div>
@@ -323,7 +331,9 @@ function AdminPage() {
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input className="pl-9" placeholder="Search registered users…" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
             </div>
-            {usersLoading ? (
+            {usersError || (userView === "active-cycles" && walletOverviewError) ? (
+              <p role="alert" className="py-4 text-sm text-destructive">Could not refresh users or active cycles. Please try again.</p>
+            ) : usersLoading || (userView === "active-cycles" && !walletOverview) ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : !visibleRegisteredUsers.length ? (
               <p className="py-4 text-sm text-muted-foreground">

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { readAllRows } from "./pagination.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1487,17 +1488,9 @@ serve(async (req) => {
 
       case "adminGetUserCount": {
         await assertAdmin(supabase, userId);
-        const onlineSince = new Date(Date.now() - 2 * 60_000).toISOString();
-        const [total, online] = await Promise.all([
-          admin.from("profiles").select("id", { count: "exact", head: true }),
-          admin
-            .from("user_presence")
-            .select("user_id", { count: "exact", head: true })
-            .gte("last_seen_at", onlineSince),
-        ]);
-        if (total.error) throw new Error(total.error.message);
-        if (online.error) throw new Error(online.error.message);
-        return json({ data: { count: total.count ?? 0, onlineCount: online.count ?? 0 } });
+        const result = await admin.rpc("admin_user_counts");
+        if (result.error) throw new Error(result.error.message);
+        return json({ data: result.data });
       }
 
       case "adminGetWalletOverview": {
@@ -1505,31 +1498,29 @@ serve(async (req) => {
         // A historical auth-user deletion can leave a legacy tranche behind.
         // It must never be included in an admin headline because it has no
         // current member card against which the amount can be reconciled.
-        const profiles = await admin
+        const profileRows = await readAllRows<any>((from, to) => admin
           .from("profiles")
           .select("id,account_id,first_name,surname,email")
-          .limit(10_000);
-        if (profiles.error) throw new Error(profiles.error.message);
-        const activeProfileIds = new Set((profiles.data ?? []).map((profile: any) => profile.id));
+          .order("id").range(from, to));
+        const activeProfileIds = new Set(profileRows.map((profile: any) => profile.id));
         const profileById = Object.fromEntries(
-          (profiles.data ?? []).map((profile: any) => [profile.id, profile]),
+          profileRows.map((profile: any) => [profile.id, profile]),
         );
         const [wallets, tranches] = await Promise.all([
-          admin.from("wallets").select("user_id,currency,balance"),
-          admin
+          readAllRows<any>((from, to) => admin.from("wallets").select("user_id,currency,balance")
+            .order("user_id").order("currency").range(from, to)),
+          readAllRows<any>((from, to) => admin
             .from("deposit_tranches")
             .select(
               "id,user_id,currency,amount,remaining,current_balance,status,maturity_date,cycle_label,growth_cycle_code,approved",
             )
-            .gt("remaining", 0),
+            .gt("remaining", 0).order("id").range(from, to)),
         ]);
-        if (wallets.error) throw new Error(wallets.error.message);
-        if (tranches.error) throw new Error(tranches.error.message);
         const metricsByUser: Record<string, any> = {};
         const totals = { withdrawable: { ZAR: 0, USD: 0 }, growing: { ZAR: 0, USD: 0 } };
         const upcomingMaturities: any[] = [];
         const maturityAlertCutoff = Date.now() + 5 * 86_400_000;
-        for (const wallet of wallets.data ?? []) {
+        for (const wallet of wallets) {
           if (!activeProfileIds.has(wallet.user_id)) continue;
           const metrics = (metricsByUser[wallet.user_id] ??= {
             balances: {},
@@ -1539,7 +1530,7 @@ serve(async (req) => {
           });
           metrics.balances[wallet.currency] = Number(wallet.balance ?? 0);
         }
-        for (const tranche of tranches.data ?? []) {
+        for (const tranche of tranches) {
           if (!activeProfileIds.has(tranche.user_id)) continue;
           if ((tranche.status ?? "locked") !== "locked") continue;
           const metrics = (metricsByUser[tranche.user_id] ??= {
@@ -1604,46 +1595,51 @@ serve(async (req) => {
       case "adminListUsers": {
         await assertAdmin(supabase, userId);
         const search = typeof data.search === "string" ? data.search.trim().slice(0, 100) : "";
-        let query = admin
+        const userRows = await readAllRows<any>((from, to) => {
+          let query = admin
           .from("profiles")
           .select(
             "id,account_id,first_name,surname,email,phone,created_at,account_frozen,frozen_at,freeze_reason",
           )
           .order("created_at", { ascending: false })
-          .limit(500);
+          .order("id")
+          .range(from, to);
         if (search) {
           const safe = search.replace(/[%(),]/g, "");
           query = query.or(
             `first_name.ilike.%${safe}%,surname.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,account_id.ilike.%${safe}%,id.eq.${/^[0-9a-f-]{36}$/i.test(safe) ? safe : "00000000-0000-0000-0000-000000000000"}`,
           );
         }
-        const users = await query;
-        if (users.error) throw new Error(users.error.message);
-        const ids = (users.data ?? []).map((profile: any) => profile.id);
-        const [disputes, presence] = ids.length
-          ? await Promise.all([
-              admin
+          return query;
+        });
+        const ids = userRows.map((profile: any) => profile.id);
+        const disputes: any[] = [];
+        const presence: any[] = [];
+        // Bound URL length and page each batch so multiple disputes cannot hide users.
+        for (let offset = 0; offset < ids.length; offset += 100) {
+          const batch = ids.slice(offset, offset + 100);
+          const [batchDisputes, batchPresence] = await Promise.all([
+              readAllRows<any>((from, to) => admin
                 .from("account_freeze_disputes")
                 .select("*")
-                .in("user_id", ids)
-                .order("created_at", { ascending: false }),
-              admin.from("user_presence").select("user_id,last_seen_at").in("user_id", ids),
-            ])
-          : [
-              { data: [], error: null },
-              { data: [], error: null },
-            ];
-        if (disputes.error) throw new Error(disputes.error.message);
-        if (presence.error) throw new Error(presence.error.message);
+                .in("user_id", batch)
+                .order("created_at", { ascending: false }).order("id").range(from, to)),
+              readAllRows<any>((from, to) => admin.from("user_presence")
+                .select("user_id,last_seen_at").in("user_id", batch)
+                .order("user_id").range(from, to)),
+          ]);
+          disputes.push(...batchDisputes);
+          presence.push(...batchPresence);
+        }
         const latestByUser: Record<string, any> = {};
-        for (const dispute of disputes.data ?? []) {
+        for (const dispute of disputes) {
           if (!latestByUser[dispute.user_id]) latestByUser[dispute.user_id] = dispute;
         }
         const lastSeenByUser = Object.fromEntries(
-          (presence.data ?? []).map((entry: any) => [entry.user_id, entry.last_seen_at]),
+          presence.map((entry: any) => [entry.user_id, entry.last_seen_at]),
         );
         const onlineCutoff = Date.now() - 2 * 60_000;
-        const usersByRecentActivity = (users.data ?? [])
+        const usersByRecentActivity = userRows
           .map((profile: any) => {
             const lastSeenAt = lastSeenByUser[profile.id] ?? null;
             return {

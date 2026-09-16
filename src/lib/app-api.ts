@@ -133,7 +133,8 @@ export const adminReviewMemberTransfer = ({ data }: Input<{ transferId: string; 
 export const adminCompleteWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminCompleteWithdrawal", data);
 export const adminRefundWithdrawal = ({ data }: Input<{ txId: string; note?: string }>) => call<any>("adminRefundWithdrawal", data);
 export const adminSetKycStatus = ({ data }: Input<{ userId: string; status: "verified" | "rejected" }>) => call<{ ok: true }>("adminSetKycStatus", data);
-export const adminGetUserCount = () => call<{ count: number; onlineCount: number }>("adminGetUserCount");
+export const adminGetUserCount = () =>
+  call<{ count: number; onlineCount: number; authUserCount: number | null }>("adminGetUserCount");
 export const adminGetWalletOverview = () => call<any>("adminGetWalletOverview");
 export const adminClearOwnGrowingBalance = ({ data }: Input<{ requestId: string }>) =>
   call<{ ok: true; replayed: boolean; clearedCycles: number; clearedByCurrency: Record<string, number> }>("adminClearOwnGrowingBalance", data);

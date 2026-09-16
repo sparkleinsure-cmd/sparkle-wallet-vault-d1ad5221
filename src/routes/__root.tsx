@@ -205,21 +205,35 @@ function RootComponent() {
   useEffect(() => {
     const updatePresence = async () => {
       if (document.visibilityState !== "visible") return;
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) return;
-      await recordPresence().catch(() => undefined);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return;
+        await recordPresence();
+      } catch {
+        // A temporary network failure is retried by the next heartbeat.
+      }
     };
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void updatePresence();
     };
 
     void updatePresence();
+    // Defer work outside the auth callback to avoid re-entering its session lock.
+    let signInTimer: number | undefined;
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        window.clearTimeout(signInTimer);
+        signInTimer = window.setTimeout(() => void updatePresence(), 0);
+      }
+    });
     const heartbeat = window.setInterval(() => void updatePresence(), 60_000);
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", updatePresence);
 
     return () => {
       window.clearInterval(heartbeat);
+      window.clearTimeout(signInTimer);
+      authListener.subscription.unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", updatePresence);
     };
