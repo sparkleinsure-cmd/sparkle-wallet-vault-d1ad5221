@@ -5,8 +5,8 @@ import { MessageCircle, Shield } from "lucide-react";
 export function AppHeader({ isAdmin, displayName, accountId }: { isAdmin: boolean; displayName?: string; accountId?: string }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
-      <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-4 py-2.5 md:px-6">
-        <div />
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 sm:grid-cols-[1fr_minmax(0,auto)_1fr] md:px-6">
+        <div className="hidden sm:block" />
 
         {displayName ? (
           <Link to="/dashboard" className="min-w-0 text-center leading-tight" aria-label="Home">
@@ -16,9 +16,10 @@ export function AppHeader({ isAdmin, displayName, accountId }: { isAdmin: boolea
         ) : <div />}
 
         <div className="flex items-center justify-end gap-1.5">
-          <Button asChild variant="outline" size="icon" className="h-8 w-8" title="Message support">
-            <Link to="/support" aria-label="Message Sparkle Insure support">
-              <MessageCircle className="h-4 w-4" />
+          <Button asChild variant="outline" size="sm" className="gap-1.5" title="Ask Mandy for help">
+            <Link to="/support" aria-label="Help — Ask Mandy">
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <span>Help</span>
             </Link>
           </Button>
           {isAdmin && (
