@@ -17,6 +17,18 @@ type Notification = {
 
 type SmsNotification = Notification & { recipient_phone: string };
 
+type UnclaimedEmailNotification = {
+  reminder_id: string;
+  recipient_email: string;
+  recipient_name: string | null;
+};
+
+type UnclaimedSmsNotification = {
+  reminder_id: string;
+  recipient_phone: string;
+  recipient_name: string | null;
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -92,6 +104,61 @@ function smsContent(notification: SmsNotification): string {
     .replace(/\s+/g, " ")
     .trim();
   return ascii.length <= 160 ? ascii : `${ascii.slice(0, 157)}...`;
+}
+
+function unclaimedBonusSmsContent(recipientName: string | null): string {
+  const firstName = recipientName?.trim() || "Member";
+  const raw = `Sparkle Insure: Hi ${firstName}, your R10 welcome bonus is waiting. Take a quick selfie under Settings in the app to claim your R10 bonus today: sparkleinsure.app`;
+  const ascii = raw
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return ascii.length <= 160 ? ascii : `${ascii.slice(0, 157)}...`;
+}
+
+function unclaimedBonusEmailContent(recipientName: string | null) {
+  const firstName = recipientName?.trim() || "Member";
+  return {
+    subject: "Claim your R10 Welcome Bonus — Sparkle Insure",
+    text: [
+      `Hi ${firstName},`,
+      "",
+      "We noticed you opened your Sparkle Insure account but haven't claimed your R10 Welcome Bonus yet.",
+      "",
+      "How to claim in under 1 minute:",
+      "1. Sign in to your account at https://sparkleinsure.app",
+      "2. Open Settings (or tap Profile) -> Welcome Bonus",
+      "3. Take a quick selfie to verify your face",
+      "",
+      "Once verified, your R10 Welcome Bonus will be credited immediately to start your first growing cycle!",
+      "",
+      "---",
+      "Need help? Please sign in to your account and click Help at the top of your dashboard screen. (Please do not reply to this email as this inbox is unmonitored).",
+      "",
+      "Kind regards,",
+      "Sparkle Insure Team",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:560px;margin:auto">
+        <h2 style="color:#6d28d9">Claim your R10 Welcome Bonus</h2>
+        <p>Hi ${escapeHtml(firstName)},</p>
+        <p>We noticed you opened your Sparkle Insure account but haven't claimed your <strong>R10 Welcome Bonus</strong> yet.</p>
+        <div style="border:1px solid #e5e7eb;border-radius:12px;padding:16px;background:#f8fafc;margin:16px 0">
+          <p style="margin:0 0 8px;font-weight:bold">How to claim in under 1 minute:</p>
+          <ol style="margin:0;padding-left:20px">
+            <li style="margin-bottom:6px">Sign in to your account at <a href="https://sparkleinsure.app" style="color:#6d28d9;font-weight:bold">sparkleinsure.app</a></li>
+            <li style="margin-bottom:6px">Open <strong>Settings</strong> (or tap Profile) &rarr; <strong>Welcome Bonus</strong></li>
+            <li>Take a quick selfie to verify your face</li>
+          </ol>
+        </div>
+        <p>Once verified, your <strong>R10 Welcome Bonus</strong> will be credited immediately to start your first growing cycle!</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0" />
+        <p style="font-size:12px;color:#6b7280;margin:0">
+          Need help? Please sign in to your account and click <strong>Help</strong> at the top of your dashboard screen. <em>(Please do not reply to this email as this inbox is unmonitored).</em>
+        </p>
+        <p style="margin-top:16px">Kind regards,<br><strong>Sparkle Insure Team</strong></p>
+      </div>`,
+  };
 }
 
 function emailContent(notification: Notification) {
@@ -224,7 +291,51 @@ async function processEmails(admin: ReturnType<typeof createClient>, resendKey: 
       if (completed.error) console.error("Could not record email failure", completed.error.message);
     }
   }
-  return { processed: claimed.data?.length ?? 0, sent, retrying };
+
+  // Also process unclaimed 2-day welcome bonus email reminders
+  const unclaimedClaimed = await admin.rpc("claim_unclaimed_bonus_emails", { p_limit: 20 });
+  if (!unclaimedClaimed.error && unclaimedClaimed.data?.length) {
+    for (const reminder of unclaimedClaimed.data as UnclaimedEmailNotification[]) {
+      const content = unclaimedBonusEmailContent(reminder.recipient_name);
+      try {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `welcome-bonus-reminder-email/${reminder.reminder_id}`,
+          },
+          body: JSON.stringify({
+            from: "Sparkle Insure <noreply@sparkleinsure.app>",
+            to: [reminder.recipient_email],
+            subject: content.subject,
+            text: content.text,
+            html: content.html,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        const success = response.ok;
+        await admin.rpc("complete_unclaimed_bonus_email", {
+          p_reminder_id: reminder.reminder_id,
+          p_success: success,
+          p_provider_message_id: success && typeof payload.id === "string" ? payload.id : null,
+          p_error: success ? null : `Resend ${response.status}: ${JSON.stringify(payload)}`.slice(0, 500),
+        });
+        if (success) sent += 1;
+        else retrying += 1;
+      } catch (error) {
+        retrying += 1;
+        await admin.rpc("complete_unclaimed_bonus_email", {
+          p_reminder_id: reminder.reminder_id,
+          p_success: false,
+          p_provider_message_id: null,
+          p_error: error instanceof Error ? error.message.slice(0, 500) : "Email request failed",
+        });
+      }
+    }
+  }
+
+  return { processed: (claimed.data?.length ?? 0) + (unclaimedClaimed.data?.length ?? 0), sent, retrying };
 }
 
 async function processSms(
@@ -293,7 +404,60 @@ async function processSms(
       if (completed.error) console.error("Could not record SMS failure", completed.error.message);
     }
   }
-  return { processed: claimed.data?.length ?? 0, sent, retrying, failed };
+
+  // Also process unclaimed 2-day welcome bonus SMS reminders
+  const unclaimedSmsClaimed = await admin.rpc("claim_unclaimed_bonus_sms", { p_limit: 20 });
+  if (!unclaimedSmsClaimed.error && unclaimedSmsClaimed.data?.length) {
+    for (const reminder of unclaimedSmsClaimed.data as UnclaimedSmsNotification[]) {
+      const destination = normalizePhone(reminder.recipient_phone);
+      if (!destination) {
+        failed += 1;
+        await admin.rpc("complete_unclaimed_bonus_sms", {
+          p_reminder_id: reminder.reminder_id,
+          p_success: false,
+          p_provider_message_id: null,
+          p_error: "Invalid recipient phone number",
+          p_permanent_failure: true,
+        });
+        continue;
+      }
+
+      try {
+        const response = await fetch("https://rest.smsportal.com/v3/BulkMessages", {
+          method: "POST",
+          headers: {
+            Authorization: authorization,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ messages: [{ content: unclaimedBonusSmsContent(reminder.recipient_name), destination }] }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        const success = response.ok;
+        const providerId = payload.eventId ?? payload.EventId ?? payload.id ?? payload.Id;
+        await admin.rpc("complete_unclaimed_bonus_sms", {
+          p_reminder_id: reminder.reminder_id,
+          p_success: success,
+          p_provider_message_id: success && providerId != null ? String(providerId) : null,
+          p_error: success ? null : `SMSPortal ${response.status}: ${JSON.stringify(payload)}`.slice(0, 500),
+          p_permanent_failure: false,
+        });
+        if (success) sent += 1;
+        else retrying += 1;
+      } catch (error) {
+        retrying += 1;
+        await admin.rpc("complete_unclaimed_bonus_sms", {
+          p_reminder_id: reminder.reminder_id,
+          p_success: false,
+          p_provider_message_id: null,
+          p_error: error instanceof Error ? error.message.slice(0, 500) : "SMSPortal request failed",
+          p_permanent_failure: false,
+        });
+      }
+    }
+  }
+
+  return { processed: (claimed.data?.length ?? 0) + (unclaimedSmsClaimed.data?.length ?? 0), sent, retrying, failed };
 }
 
 serve(async (request) => {
@@ -322,6 +486,9 @@ serve(async (request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   try {
+    // Scan and enqueue any newly overdue (>= 2 days) unclaimed accounts
+    await admin.rpc("enqueue_overdue_welcome_bonus_reminders");
+
     const email = resendKey
       ? await processEmails(admin, resendKey)
       : { processed: 0, sent: 0, retrying: 0 };

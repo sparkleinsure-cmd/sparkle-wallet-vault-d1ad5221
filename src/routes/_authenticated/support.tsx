@@ -35,11 +35,19 @@ function SupportPage() {
     enabled: !!me?.profile,
     refetchInterval: 4_000,
   });
-  const status = thread?.conversation.status ?? "ai";
+
+  // Filter messages to strictly within the last 24 hours
+  const now = Date.now();
+  const activeMessages = (thread?.messages ?? []).filter((msg) => {
+    const time = new Date(msg.createdAt).getTime();
+    return Number.isFinite(time) && now - time < 24 * 60 * 60 * 1000;
+  });
+
+  const status = activeMessages.length === 0 ? "ai" : (thread?.conversation.status ?? "ai");
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [thread?.messages.length]);
+  }, [activeMessages.length]);
 
   async function send() {
     const trimmed = message.trim();
@@ -141,7 +149,7 @@ function SupportPage() {
               <div className="flex justify-center py-16">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ) : !thread?.messages.length ? (
+            ) : !activeMessages.length ? (
               <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-orange-500/20 bg-orange-500/5 p-3">
                 <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-orange-600">
                   <Bot className="h-3.5 w-3.5" /> Mandy · automated assistant
@@ -152,12 +160,12 @@ function SupportPage() {
                 </p>
               </div>
             ) : (
-              thread.messages.map((item) => <MessageBubble key={item.id} message={item} />)
+              activeMessages.map((item) => <MessageBubble key={item.id} message={item} />)
             )}
             <div ref={endRef} />
           </div>
 
-          {status === "ai" && !thread?.messages.length && (
+          {status === "ai" && !activeMessages.length && (
             <div className="flex flex-wrap gap-2 border-t border-border/40 px-4 py-3">
               {[
                 "How does Sparkle Insure work?",

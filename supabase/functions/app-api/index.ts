@@ -140,6 +140,42 @@ async function ensureSupportConversation(admin: any, memberId: string) {
 
 async function memberSupportThread(admin: any, memberId: string) {
   const conversation = await ensureSupportConversation(admin, memberId);
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  // If the last message was more than 24 hours ago, clear messages and reset status
+  if (conversation.last_message_at && conversation.last_message_at < cutoff24h) {
+    await admin.from("support_messages").delete().eq("conversation_id", conversation.id);
+    await admin
+      .from("support_conversations")
+      .update({
+        status: "ai",
+        assigned_admin_id: null,
+        human_requested_at: null,
+        unread_by_admin: 0,
+        unread_by_user: 0,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversation.id);
+
+    return {
+      conversation: {
+        id: conversation.id,
+        status: "ai",
+        humanRequestedAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+      messages: [],
+    };
+  }
+
+  // Also clean up any individual messages older than 24h
+  await admin
+    .from("support_messages")
+    .delete()
+    .eq("conversation_id", conversation.id)
+    .lt("created_at", cutoff24h);
+
   const messages = await admin
     .from("support_messages")
     .select("id,sender_type,body,ai_model,created_at")
@@ -156,7 +192,7 @@ async function memberSupportThread(admin: any, memberId: string) {
   return {
     conversation: {
       id: conversation.id,
-      status: conversation.status,
+      status: (messages.data?.length === 0 && conversation.status !== "ai") ? "ai" : conversation.status,
       humanRequestedAt: conversation.human_requested_at,
       updatedAt: conversation.updated_at,
     },

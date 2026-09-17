@@ -1450,8 +1450,13 @@ function RecruiterApplicationRow({ application, onDone }: { application: any; on
     finally { setBusy(false); }
   };
 
+  const recruitsCount = Number(application.recruitsCount ?? application.qualifyingRecruits ?? 0);
+  const qualifyingDeposits = Number(application.qualifyingDeposits ?? application.currentDeposits ?? 0);
+  const target = 20000;
+  const progressPercent = Math.min(100, Math.round((qualifyingDeposits / target) * 100));
+
   return <div className="rounded-xl border bg-background/50 p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <div className="font-semibold">{application.firstName} {application.surname} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{application.accountId}</span></div>
         <div className="text-xs text-muted-foreground">{application.email} · {application.phone} · applied {new Date(application.appliedAt).toLocaleString()}</div>
@@ -1459,8 +1464,39 @@ function RecruiterApplicationRow({ application, onDone }: { application: any; on
         <div className="mt-1 text-xs text-muted-foreground">Agreement: {application.agreementVersion}</div>
         {application.reviewNote && <p className="mt-2 rounded-lg bg-muted p-2 text-xs">{application.reviewNote}</p>}
       </div>
-      <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize">{application.status}</span>
+      <span className="self-start rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize">{application.status}</span>
     </div>
+
+    {application.status === "approved" && (
+      <div className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-semibold uppercase tracking-wider text-violet-800 dark:text-violet-200">
+            Monthly Milestone Progress (R3,000 Target)
+          </div>
+          <span className="font-display text-xs font-bold text-violet-700 dark:text-violet-300">
+            {progressPercent}% completed
+          </span>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="rounded-lg bg-background/60 p-2 text-xs">
+            <span className="text-muted-foreground">Recruits:</span>
+            <div className="font-semibold text-foreground">{recruitsCount} {recruitsCount === 1 ? "recruitee" : "recruitees"}</div>
+          </div>
+          <div className="rounded-lg bg-background/60 p-2 text-xs">
+            <span className="text-muted-foreground">Qualifying volume:</span>
+            <div className="font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(qualifyingDeposits, "ZAR")}</div>
+          </div>
+          <div className="col-span-2 rounded-lg bg-background/60 p-2 text-xs sm:col-span-1">
+            <span className="text-muted-foreground">Target goal:</span>
+            <div className="font-semibold text-foreground">R20,000 (R3,000 reward)</div>
+          </div>
+        </div>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-violet-200 dark:bg-violet-950">
+          <div className="h-full bg-violet-600 transition-all" style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
+    )}
+
     {application.status === "pending" && <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
       <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional approval note; required when declining" maxLength={500} />
       <Button disabled={busy} onClick={() => review("approved")}><CheckCircle2 className="mr-2 h-4 w-4" />Approve recruiter</Button>
