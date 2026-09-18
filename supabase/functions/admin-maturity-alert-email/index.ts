@@ -51,6 +51,12 @@ type AutoApprovalDigest = {
   events: AutoApprovalEvent[];
 };
 
+type DailyReportRun = {
+  report_id: string;
+  report_date: string;
+  metrics: any;
+};
+
 type AdminClient = ReturnType<typeof createClient>;
 
 const json = (body: unknown, status = 200) =>
@@ -281,6 +287,156 @@ function autoApprovalEmailContent(digest: AutoApprovalDigest) {
   };
 }
 
+function dailyReportEmailContent(report: DailyReportRun) {
+  const m = report.metrics ?? {};
+  const dateStr = report.report_date;
+  const newUsers = Array.isArray(m.newAccounts) ? m.newAccounts : [];
+  const deposits = Array.isArray(m.depositsList) ? m.depositsList : [];
+  const loggedIn = Array.isArray(m.activeLoggedInUsers) ? m.activeLoggedInUsers : [];
+
+  const subject = `Sparkle Daily Report — ${dateStr} (00:00 SAST)`;
+
+  const text = [
+    `Sparkle Insure — Comprehensive Daily Report`,
+    `Report Date: ${dateStr} (Evaluation window: Past 24 hours)`,
+    ``,
+    `=== EXECUTIVE SUMMARY ===`,
+    `• Total Registered Users: ${m.totalUsers ?? 0}`,
+    `• Users with Active Growing Cycles: ${m.usersWithActiveCycles ?? 0}`,
+    `• Total Active Growing Cycles: ${m.totalActiveCycles ?? 0}`,
+    `• Total Locked Growing Volume: ${formatAmount(m.totalGrowingVolumeZAR ?? 0, "ZAR")}`,
+    ``,
+    `=== PAST 24 HOURS ACTIVITY ===`,
+    `• Active / Logged-in Users: ${m.activeLoggedInCount ?? 0}`,
+    `• New Accounts Created: ${m.newAccountsCount ?? 0}`,
+    `• Deposits Received: ${m.depositsCount ?? 0} (Total Completed: ${formatAmount(m.depositsTotalZAR ?? 0, "ZAR")})`,
+    `• Withdrawals Submitted: ${m.withdrawalsCount ?? 0} (Total Completed: ${formatAmount(m.withdrawalsTotalZAR ?? 0, "ZAR")})`,
+    `• Welcome Bonuses Credited (R10): ${m.welcomeBonusCreditedCount ?? 0}`,
+    ``,
+    `=== NEW ACCOUNTS (PAST 24H) ===`,
+    newUsers.length ? newUsers.map((u: any, i: number) => `${i + 1}. ${u.name} (${u.accountId}) - ${u.email} - ${u.phone}`).join("\n") : "None",
+    ``,
+    `=== DEPOSITS (PAST 24H) ===`,
+    deposits.length ? deposits.map((d: any, i: number) => `${i + 1}. ${d.name} (${d.accountId}) - ${formatAmount(d.amount, d.currency)} [${d.status}] Ref: ${d.reference}`).join("\n") : "None",
+    ``,
+    `Open Admin Console for full details: https://sparkleinsure.app/admin`
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:680px;margin:auto">
+      <div style="background:#07869d;padding:18px 24px;border-radius:12px 12px 0 0;color:#fff">
+        <h2 style="margin:0;font-size:22px">Daily System & Activity Report</h2>
+        <p style="margin:4px 0 0;font-size:13px;opacity:0.9">Sparkle Insure &middot; ${escapeHtml(dateStr)} (00:00 SAST)</p>
+      </div>
+
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;background:#ffffff">
+        <h3 style="margin-top:0;color:#0f172a">Executive Summary</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
+            <div style="font-size:11px;text-transform:uppercase;color:#64748b">Total Members</div>
+            <div style="font-size:20px;font-weight:bold;color:#0f172a">${m.totalUsers ?? 0}</div>
+          </div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px">
+            <div style="font-size:11px;text-transform:uppercase;color:#166534">Active Growing Users</div>
+            <div style="font-size:20px;font-weight:bold;color:#166534">${m.usersWithActiveCycles ?? 0} (${m.totalActiveCycles ?? 0} cycles)</div>
+          </div>
+          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px">
+            <div style="font-size:11px;text-transform:uppercase;color:#0369a1">Active Growing Volume</div>
+            <div style="font-size:20px;font-weight:bold;color:#0369a1">${escapeHtml(formatAmount(m.totalGrowingVolumeZAR ?? 0, "ZAR"))}</div>
+          </div>
+          <div style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:12px">
+            <div style="font-size:11px;text-transform:uppercase;color:#854d0e">Logged In (Past 24h)</div>
+            <div style="font-size:20px;font-weight:bold;color:#854d0e">${m.activeLoggedInCount ?? 0} members</div>
+          </div>
+        </div>
+
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">24h Transactions & Growth</h3>
+        <ul style="padding-left:20px;color:#334155;margin-bottom:24px">
+          <li><strong>New Accounts:</strong> ${m.newAccountsCount ?? 0} registered</li>
+          <li><strong>Deposits (24h):</strong> ${m.depositsCount ?? 0} received (${escapeHtml(formatAmount(m.depositsTotalZAR ?? 0, "ZAR"))} completed)</li>
+          <li><strong>Withdrawals (24h):</strong> ${m.withdrawalsCount ?? 0} processed (${escapeHtml(formatAmount(m.withdrawalsTotalZAR ?? 0, "ZAR"))} completed)</li>
+          <li><strong>Welcome Bonuses (R10):</strong> ${m.welcomeBonusCreditedCount ?? 0} credited</li>
+        </ul>
+
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">New Accounts (Past 24h)</h3>
+        ${newUsers.length ? `
+          <div style="max-height:220px;overflow-y:auto;font-size:13px">
+            ${newUsers.map((u: any) => `
+              <div style="padding:8px 0;border-bottom:1px solid #f8fafc">
+                <strong>${escapeHtml(u.name)}</strong> (${escapeHtml(u.accountId)}) &middot; ${escapeHtml(u.email)} &middot; ${escapeHtml(u.phone ?? "")}
+              </div>
+            `).join("")}
+          </div>
+        ` : `<p style="font-size:13px;color:#94a3b8">No new signups in this period.</p>`}
+
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-top:20px">Deposits (Past 24h)</h3>
+        ${deposits.length ? `
+          <div style="max-height:220px;overflow-y:auto;font-size:13px">
+            ${deposits.map((d: any) => `
+              <div style="padding:8px 0;border-bottom:1px solid #f8fafc">
+                <strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.accountId)}) &middot; <span style="font-weight:bold;color:#166534">${escapeHtml(formatAmount(d.amount, d.currency))}</span> [${escapeHtml(d.status)}] &middot; Ref: ${escapeHtml(d.reference ?? "")}
+              </div>
+            `).join("")}
+          </div>
+        ` : `<p style="font-size:13px;color:#94a3b8">No deposits in this period.</p>`}
+
+        <div style="margin-top:28px;text-align:center">
+          <a href="https://sparkleinsure.app/admin" style="display:inline-block;background:#07869d;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;font-size:14px">Open Admin Console</a>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+async function processDailyReport(
+  admin: AdminClient,
+  resendKey: string,
+  from: string,
+  recipientEmail: string,
+) {
+  const claimed = await admin.rpc("claim_admin_daily_report");
+  if (claimed.error) throw new Error(claimed.error.message);
+  const report = (claimed.data?.[0] ?? null) as DailyReportRun | null;
+  if (!report) return { ok: true, emailOnly: true, kind: "daily_report", processed: 0, sent: 0 };
+
+  let result: Awaited<ReturnType<typeof sendAdminEmail>>;
+  try {
+    result = await sendAdminEmail(
+      resendKey,
+      from,
+      recipientEmail,
+      `admin-daily-report/${report.report_id}`,
+      dailyReportEmailContent(report),
+    );
+  } catch (error) {
+    result = {
+      success: false,
+      providerMessageId: null,
+      error: error instanceof Error ? error.message.slice(0, 500) : "Daily report email request failed",
+    };
+  }
+
+  const completed = await admin.rpc("complete_admin_daily_report", {
+    p_report_id: report.report_id,
+    p_success: result.success,
+    p_provider_message_id: result.providerMessageId,
+    p_error: result.error,
+  });
+  if (completed.error) throw new Error(completed.error.message);
+
+  return {
+    ok: result.success,
+    emailOnly: true,
+    kind: "daily_report",
+    processed: 1,
+    sent: result.success ? 1 : 0,
+    retrying: result.success ? 0 : 1,
+    error: result.error,
+  };
+}
+
 async function sendAdminEmail(
   resendKey: string,
   from: string,
@@ -495,7 +651,7 @@ serve(async (request) => {
   // previously deployed midnight cron request.
   const body = await request.json().catch(() => ({}));
   const kind = body && typeof body === "object" && "kind" in body ? body.kind : "maturity";
-  if (kind !== "maturity" && kind !== "deposit" && kind !== "approval" && kind !== "routine") {
+  if (kind !== "maturity" && kind !== "deposit" && kind !== "approval" && kind !== "routine" && kind !== "daily_report") {
     return json({ error: "Unknown admin email notification kind" }, 400);
   }
 
@@ -521,7 +677,19 @@ serve(async (request) => {
         ? await processPendingDeposits(admin, resendKey, from, recipientEmail)
         : kind === "approval"
           ? await processAutoApprovals(admin, resendKey, from, recipientEmail)
-          : await processMaturityAlert(admin, resendKey, from, recipientEmail);
+          : kind === "daily_report"
+            ? await processDailyReport(admin, resendKey, from, recipientEmail)
+            : await (async () => {
+                const maturity = await processMaturityAlert(admin, resendKey, from, recipientEmail);
+                const daily = await processDailyReport(admin, resendKey, from, recipientEmail);
+                return {
+                  ok: maturity.ok && daily.ok,
+                  emailOnly: true,
+                  kind: "midnight",
+                  processed: maturity.processed + daily.processed,
+                  sent: maturity.sent + daily.sent,
+                };
+              })();
     return json(result, result.ok ? 200 : 502);
   } catch (error) {
     console.error(`Admin ${kind} email worker failed`, error);
