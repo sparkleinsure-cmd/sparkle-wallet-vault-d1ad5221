@@ -390,41 +390,81 @@ function dailyReportEmailContent(report: DailyReportRun) {
   return { subject, text, html };
 }
 
-async function processDailyReport(
+async function processDailyReportDirect(
   admin: AdminClient,
   resendKey: string,
   from: string,
   recipientEmail: string,
 ) {
-  const claimed = await admin.rpc("claim_admin_daily_report");
-  if (claimed.error) throw new Error(claimed.error.message);
-  const report = (claimed.data?.[0] ?? null) as DailyReportRun | null;
-  if (!report) return { ok: true, emailOnly: true, kind: "daily_report", processed: 0, sent: 0 };
+  const now = new Date();
+  const dayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(now);
+  const start24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  let result: Awaited<ReturnType<typeof sendAdminEmail>>;
-  try {
-    result = await sendAdminEmail(
-      resendKey,
-      from,
-      recipientEmail,
-      `admin-daily-report/${report.report_id}`,
-      dailyReportEmailContent(report),
-    );
-  } catch (error) {
-    result = {
-      success: false,
-      providerMessageId: null,
-      error: error instanceof Error ? error.message.slice(0, 500) : "Daily report email request failed",
-    };
-  }
+  // Query stats directly using standard Supabase tables
+  const [profilesRes, usersRes, tranchesRes, newProfilesRes, loggedInRes, depositsRes, withdrawalsRes, bonusRes] = await Promise.all([
+    admin.from("profiles").select("id", { count: "exact", head: true }),
+    admin.from("wallets").select("user_id", { count: "exact", head: true }),
+    admin.from("deposit_tranches").select("user_id, currency, current_balance, remaining").eq("status", "locked").gt("remaining", 0),
+    admin.from("profiles").select("account_id, first_name, surname, email, phone, created_at").gte("created_at", start24h).order("created_at", { ascending: false }).limit(100),
+    admin.from("user_presence").select("user_id, last_seen_at").gte("last_seen_at", start24h).order("last_seen_at", { ascending: false }).limit(200),
+    admin.from("transactions").select("id, amount, currency, status, reference, created_at, user_id").eq("type", "deposit").gte("created_at", start24h).order("created_at", { ascending: false }).limit(100),
+    admin.from("transactions").select("amount, status").eq("type", "withdrawal").gte("created_at", start24h),
+    admin.from("profiles").select("id", { count: "exact", head: true }).gte("welcome_bonus_credited_at", start24h),
+  ]);
 
-  const completed = await admin.rpc("complete_admin_daily_report", {
-    p_report_id: report.report_id,
-    p_success: result.success,
-    p_provider_message_id: result.providerMessageId,
-    p_error: result.error,
+  const activeTranches = tranchesRes.data ?? [];
+  const uniqueGrowingUsers = new Set(activeTranches.map((t) => t.user_id)).size;
+  const growingVolumeZAR = activeTranches.filter((t) => t.currency === "ZAR").reduce((sum, t) => sum + Number(t.current_balance ?? t.remaining ?? 0), 0);
+
+  const deposits = depositsRes.data ?? [];
+  const completedDepositsZAR = deposits.filter((d) => d.status === "completed" && d.currency === "ZAR").reduce((sum, d) => sum + Number(d.amount ?? 0), 0);
+
+  const withdrawals = withdrawalsRes.data ?? [];
+  const completedWithdrawalsZAR = withdrawals.filter((w) => w.status === "completed").reduce((sum, w) => sum + Number(w.amount ?? 0), 0);
+
+  const newAccounts = (newProfilesRes.data ?? []).map((p) => ({
+    name: `${p.first_name ?? ""} ${p.surname ?? ""}`.trim() || "Member",
+    accountId: p.account_id,
+    email: p.email,
+    phone: p.phone,
+  }));
+
+  const metrics = {
+    totalUsers: profilesRes.count ?? 0,
+    usersWithActiveCycles: uniqueGrowingUsers,
+    totalActiveCycles: activeTranches.length,
+    totalGrowingVolumeZAR: growingVolumeZAR,
+    activeLoggedInCount: (loggedInRes.data ?? []).length,
+    newAccountsCount: newAccounts.length,
+    newAccounts,
+    depositsCount: deposits.length,
+    depositsTotalZAR: completedDepositsZAR,
+    depositsList: deposits.map((d) => ({
+      name: "Member",
+      accountId: d.user_id?.slice(0, 8),
+      amount: d.amount,
+      currency: d.currency,
+      status: d.status,
+      reference: d.reference,
+    })),
+    withdrawalsCount: withdrawals.length,
+    withdrawalsTotalZAR: completedWithdrawalsZAR,
+    welcomeBonusCreditedCount: bonusRes.count ?? 0,
+  };
+
+  const content = dailyReportEmailContent({
+    report_id: crypto.randomUUID(),
+    report_date: dayStr,
+    metrics,
   });
-  if (completed.error) throw new Error(completed.error.message);
+
+  const result = await sendAdminEmail(
+    resendKey,
+    from,
+    recipientEmail,
+    `admin-daily-report/${dayStr}-${Math.floor(Date.now() / (1000 * 60 * 30))}`,
+    content,
+  );
 
   return {
     ok: result.success,
@@ -432,7 +472,6 @@ async function processDailyReport(
     kind: "daily_report",
     processed: 1,
     sent: result.success ? 1 : 0,
-    retrying: result.success ? 0 : 1,
     error: result.error,
   };
 }
@@ -678,10 +717,10 @@ serve(async (request) => {
         : kind === "approval"
           ? await processAutoApprovals(admin, resendKey, from, recipientEmail)
           : kind === "daily_report"
-            ? await processDailyReport(admin, resendKey, from, recipientEmail)
+            ? await processDailyReportDirect(admin, resendKey, from, recipientEmail)
             : await (async () => {
                 const maturity = await processMaturityAlert(admin, resendKey, from, recipientEmail);
-                const daily = await processDailyReport(admin, resendKey, from, recipientEmail);
+                const daily = await processDailyReportDirect(admin, resendKey, from, recipientEmail);
                 return {
                   ok: maturity.ok && daily.ok,
                   emailOnly: true,
