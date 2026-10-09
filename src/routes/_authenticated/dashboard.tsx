@@ -29,7 +29,7 @@ function DashboardPage() {
   const fetchHealth = getAccountHealth;
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["me"],
     queryFn: () => fetchMe(),
   });
@@ -73,10 +73,23 @@ function DashboardPage() {
       });
   }, [data?.profile]);
 
-  if (isLoading || !data?.profile) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError || !data?.profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="max-w-sm space-y-4 text-center">
+          <p className="text-sm text-muted-foreground" role="alert">
+            We couldn&apos;t load your dashboard. Check your connection and try again.
+          </p>
+          <Button onClick={() => void refetch()}>Try again</Button>
+        </div>
       </div>
     );
   }

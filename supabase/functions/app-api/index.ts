@@ -461,7 +461,13 @@ serve(async (req) => {
           .select("signal_type,signal_hash")
           .eq("user_id", userId);
         if (signals.error) throw new Error(signals.error.message);
-        const hashes = [...new Set((signals.data ?? []).map((signal: any) => signal.signal_hash))];
+        const historyHashes = [
+          ...new Set(
+            (signals.data ?? [])
+              .filter((signal: any) => ["email", "phone", "installation"].includes(signal.signal_type))
+              .map((signal: any) => signal.signal_hash),
+          ),
+        ];
         const exemptionCandidates = [
           ...new Set([
             ...(signals.data ?? [])
@@ -480,18 +486,22 @@ serve(async (req) => {
         const exemptInstallationHashes = new Set(
           (exemptions.data ?? []).map((entry: any) => entry.signal_hash),
         );
-        if (hashes.length) {
-          const history = await admin
-            .from("signup_identity_history")
-            .select("signal_type,signal_hash,first_user_id,bonus_claimed_at")
-            .in("signal_hash", hashes);
-          if (history.error) throw new Error(history.error.message);
+        if (historyHashes.length) {
+          const historyRows: any[] = [];
+          for (let offset = 0; offset < historyHashes.length; offset += 50) {
+            const history = await admin
+              .from("signup_identity_history")
+              .select("signal_type,signal_hash,first_user_id,bonus_claimed_at")
+              .in("signal_hash", historyHashes.slice(offset, offset + 50));
+            if (history.error) throw new Error(history.error.message);
+            historyRows.push(...(history.data ?? []));
+          }
           const currentSignals = new Set(
             (signals.data ?? []).map(
               (signal: any) => `${signal.signal_type}:${signal.signal_hash}`,
             ),
           );
-          const matchingHistory = (history.data ?? []).filter((entry: any) =>
+          const matchingHistory = historyRows.filter((entry: any) =>
             currentSignals.has(`${entry.signal_type}:${entry.signal_hash}`),
           );
           // Network addresses and broad browser/system fingerprints can be
