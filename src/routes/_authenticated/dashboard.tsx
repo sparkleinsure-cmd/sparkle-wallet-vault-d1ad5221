@@ -29,7 +29,7 @@ function DashboardPage() {
   const fetchHealth = getAccountHealth;
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error: dashboardLoadError, isLoading, isError, refetch } = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -101,6 +101,12 @@ function DashboardPage() {
           <p className="text-sm text-muted-foreground" role="alert">
             We couldn&apos;t load your dashboard. Check your connection and try again.
           </p>
+          {dashboardLoadError instanceof Error && (
+            <details className="rounded-lg border border-border/60 px-3 py-2 text-left text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium">Support details</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words font-sans">{dashboardLoadError.message}</pre>
+            </details>
+          )}
           <Button onClick={() => void refetch()}>Try again</Button>
         </div>
       </div>
