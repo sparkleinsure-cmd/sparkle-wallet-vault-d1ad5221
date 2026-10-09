@@ -462,11 +462,7 @@ serve(async (req) => {
           .eq("user_id", userId);
         if (signals.error) throw new Error(signals.error.message);
         const historyHashes = [
-          ...new Set(
-            (signals.data ?? [])
-              .filter((signal: any) => ["email", "phone", "installation"].includes(signal.signal_type))
-              .map((signal: any) => signal.signal_hash),
-          ),
+          ...new Set((signals.data ?? []).map((signal: any) => signal.signal_hash)),
         ];
         const exemptionCandidates = [
           ...new Set([
@@ -504,23 +500,14 @@ serve(async (req) => {
           const matchingHistory = historyRows.filter((entry: any) =>
             currentSignals.has(`${entry.signal_type}:${entry.signal_hash}`),
           );
-          // Network addresses and broad browser/system fingerprints can be
-          // shared by unrelated people. They are useful for risk analysis,
-          // but must never make a new member appear to have claimed a bonus.
-          const strongMatchingHistory = matchingHistory.filter(
-            (entry: any) =>
-              ["email", "phone"].includes(entry.signal_type) ||
-              (entry.signal_type === "installation" &&
-                !exemptInstallationHashes.has(entry.signal_hash)),
-          );
           if (!welcomeBonusClaimedAt) {
             welcomeBonusClaimedAt =
-              strongMatchingHistory
+              matchingHistory
                 .map((entry: any) => entry.bonus_claimed_at)
                 .filter(Boolean)
                 .sort()[0] ?? null;
           }
-          welcomeBonusEligible = !strongMatchingHistory.some(
+          welcomeBonusEligible = !matchingHistory.some(
             (entry: any) => entry.first_user_id !== userId,
           );
         }
