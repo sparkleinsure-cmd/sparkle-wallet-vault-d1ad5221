@@ -31,7 +31,21 @@ function DashboardPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["me"],
-    queryFn: () => fetchMe(),
+    queryFn: async () => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          fetchMe(),
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("Dashboard request timed out")), 20_000);
+          }),
+        ]);
+      } finally {
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
+      }
+    },
+    retry: 1,
+    retryDelay: 1_000,
   });
   const { data: health } = useQuery({
     queryKey: ["account-health"],
