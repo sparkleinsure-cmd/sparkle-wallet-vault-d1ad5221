@@ -294,11 +294,24 @@ function dailyReportEmailContent(report: DailyReportRun) {
   const deposits = Array.isArray(m.depositsList) ? m.depositsList : [];
   const loggedIn = Array.isArray(m.activeLoggedInUsers) ? m.activeLoggedInUsers : [];
 
-  const subject = `Sparkle Daily Report — ${dateStr} (00:00 SAST)`;
+  const subject = `Sparkle Daily Report — ${dateStr} (SAST)`;
+  const period = `${m.windowStart} to ${m.windowEnd} (SAST calendar day; timestamps shown in UTC)`;
+  const transactions = Array.isArray(m.transactionsList) ? m.transactionsList : [];
+  const transfers = Array.isArray(m.transfersList) ? m.transfersList : [];
+  const settings = Array.isArray(m.settingsList) ? m.settingsList : [];
+  const identity = (u: any) => `${u.name || "Member"} (${u.accountId || u.userId || "unknown account"})`;
+  const sections: [string, string[]][] = [
+    ["USER LOGINS", loggedIn.map((u: any) => `${identity(u)} — ${u.email || ""} — ${u.loginCount} login(s); last: ${u.lastSeenAt}`)],
+    ["USER TRANSACTION HISTORY", transactions.map((t: any) => `${identity(t)} — ${t.createdAt} — ${t.type} — ${formatAmount(t.amount, t.currency)} [${t.status}] — ID: ${t.id} — Ref: ${t.reference || ""} — ${t.description || ""}`)],
+    ["FUNDS TRANSFERS", transfers.map((t: any) => `${t.senderName} (${t.senderAccountId}) -> ${t.recipientName} (${t.recipientAccountId}) — ${formatAmount(t.amount, t.currency)} [${t.status}] — ID: ${t.id} — Requested: ${t.createdAt}; completed: ${t.completedAt || "pending"}; reviewed: ${t.reviewedAt || "not reviewed"}`)],
+    ["SETTINGS CHANGES", settings.map((u: any) => `${identity(u)} — ${u.occurredAt} — ${u.changedFields.join(", ")} — Actor: ${u.actor}`)],
+  ];
+  const activityText = sections.map(([title, rows]) => `=== ${title} (${rows.length}) ===\n${rows.join("\n") || "None"}`).join("\n\n");
+  const activityHtml = sections.map(([title, rows]) => `<h3>${escapeHtml(title)} (${rows.length})</h3>${rows.length ? rows.map(row => `<p style="overflow-wrap:anywhere">${escapeHtml(row)}</p>`).join("") : "<p>None</p>"}`).join("");
 
   const text = [
     `Sparkle Insure — Comprehensive Daily Report`,
-    `Report Date: ${dateStr} (Evaluation window: Past 24 hours)`,
+    `Report Date: ${dateStr}; ${period}`,
     ``,
     `=== EXECUTIVE SUMMARY ===`,
     `• Total Registered Users: ${m.totalUsers ?? 0}`,
@@ -306,19 +319,20 @@ function dailyReportEmailContent(report: DailyReportRun) {
     `• Total Active Growing Cycles: ${m.totalActiveCycles ?? 0}`,
     `• Total Locked Growing Volume: ${formatAmount(m.totalGrowingVolumeZAR ?? 0, "ZAR")}`,
     ``,
-    `=== PAST 24 HOURS ACTIVITY ===`,
+    `=== REPORTING PERIOD ACTIVITY ===`,
     `• Active / Logged-in Users: ${m.activeLoggedInCount ?? 0}`,
     `• New Accounts Created: ${m.newAccountsCount ?? 0}`,
     `• Deposits Received: ${m.depositsCount ?? 0} (Total Completed: ${formatAmount(m.depositsTotalZAR ?? 0, "ZAR")})`,
     `• Withdrawals Submitted: ${m.withdrawalsCount ?? 0} (Total Completed: ${formatAmount(m.withdrawalsTotalZAR ?? 0, "ZAR")})`,
     `• Welcome Bonuses Credited (R10): ${m.welcomeBonusCreditedCount ?? 0}`,
     ``,
-    `=== NEW ACCOUNTS (PAST 24H) ===`,
+    `=== NEW ACCOUNTS (REPORTING PERIOD) ===`,
     newUsers.length ? newUsers.map((u: any, i: number) => `${i + 1}. ${u.name} (${u.accountId}) - ${u.email} - ${u.phone}`).join("\n") : "None",
     ``,
-    `=== DEPOSITS (PAST 24H) ===`,
+    `=== DEPOSITS (REPORTING PERIOD) ===`,
     deposits.length ? deposits.map((d: any, i: number) => `${i + 1}. ${d.name} (${d.accountId}) - ${formatAmount(d.amount, d.currency)} [${d.status}] Ref: ${d.reference}`).join("\n") : "None",
     ``,
+    activityText,
     `Open Admin Console for full details: https://sparkleinsure.app/admin`
   ].join("\n");
 
@@ -326,7 +340,7 @@ function dailyReportEmailContent(report: DailyReportRun) {
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:680px;margin:auto">
       <div style="background:#07869d;padding:18px 24px;border-radius:12px 12px 0 0;color:#fff">
         <h2 style="margin:0;font-size:22px">Daily System & Activity Report</h2>
-        <p style="margin:4px 0 0;font-size:13px;opacity:0.9">Sparkle Insure &middot; ${escapeHtml(dateStr)} (00:00 SAST)</p>
+        <p style="margin:4px 0 0;font-size:13px;opacity:0.9">Sparkle Insure &middot; ${escapeHtml(dateStr)} &middot; ${escapeHtml(period)}</p>
       </div>
 
       <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;background:#ffffff">
@@ -345,20 +359,20 @@ function dailyReportEmailContent(report: DailyReportRun) {
             <div style="font-size:20px;font-weight:bold;color:#0369a1">${escapeHtml(formatAmount(m.totalGrowingVolumeZAR ?? 0, "ZAR"))}</div>
           </div>
           <div style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:12px">
-            <div style="font-size:11px;text-transform:uppercase;color:#854d0e">Logged In (Past 24h)</div>
+            <div style="font-size:11px;text-transform:uppercase;color:#854d0e">Logged In (Reporting period)</div>
             <div style="font-size:20px;font-weight:bold;color:#854d0e">${m.activeLoggedInCount ?? 0} members</div>
           </div>
         </div>
 
-        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">24h Transactions & Growth</h3>
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">Transactions & Growth</h3>
         <ul style="padding-left:20px;color:#334155;margin-bottom:24px">
           <li><strong>New Accounts:</strong> ${m.newAccountsCount ?? 0} registered</li>
-          <li><strong>Deposits (24h):</strong> ${m.depositsCount ?? 0} received (${escapeHtml(formatAmount(m.depositsTotalZAR ?? 0, "ZAR"))} completed)</li>
-          <li><strong>Withdrawals (24h):</strong> ${m.withdrawalsCount ?? 0} processed (${escapeHtml(formatAmount(m.withdrawalsTotalZAR ?? 0, "ZAR"))} completed)</li>
+          <li><strong>Deposits (period):</strong> ${m.depositsCount ?? 0} received (${escapeHtml(formatAmount(m.depositsTotalZAR ?? 0, "ZAR"))} completed)</li>
+          <li><strong>Withdrawals (period):</strong> ${m.withdrawalsCount ?? 0} processed (${escapeHtml(formatAmount(m.withdrawalsTotalZAR ?? 0, "ZAR"))} completed)</li>
           <li><strong>Welcome Bonuses (R10):</strong> ${m.welcomeBonusCreditedCount ?? 0} credited</li>
         </ul>
 
-        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">New Accounts (Past 24h)</h3>
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px">New Accounts (Reporting period)</h3>
         ${newUsers.length ? `
           <div style="max-height:220px;overflow-y:auto;font-size:13px">
             ${newUsers.map((u: any) => `
@@ -369,7 +383,7 @@ function dailyReportEmailContent(report: DailyReportRun) {
           </div>
         ` : `<p style="font-size:13px;color:#94a3b8">No new signups in this period.</p>`}
 
-        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-top:20px">Deposits (Past 24h)</h3>
+        <h3 style="color:#0f172a;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-top:20px">Deposits (Reporting period)</h3>
         ${deposits.length ? `
           <div style="max-height:220px;overflow-y:auto;font-size:13px">
             ${deposits.map((d: any) => `
@@ -380,6 +394,7 @@ function dailyReportEmailContent(report: DailyReportRun) {
           </div>
         ` : `<p style="font-size:13px;color:#94a3b8">No deposits in this period.</p>`}
 
+        ${activityHtml}
         <div style="margin-top:28px;text-align:center">
           <a href="https://sparkleinsure.app/admin" style="display:inline-block;background:#07869d;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;font-size:14px">Open Admin Console</a>
         </div>
@@ -395,62 +410,13 @@ async function processDailyReportDirect(
   resendKey: string,
   from: string,
   recipientEmail: string,
+  today = false,
 ) {
-  const now = new Date();
-  const dayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(now);
-  const start24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-  // Query stats directly using standard Supabase tables
-  const [profilesRes, usersRes, tranchesRes, newProfilesRes, loggedInRes, depositsRes, withdrawalsRes, bonusRes] = await Promise.all([
-    admin.from("profiles").select("id", { count: "exact", head: true }),
-    admin.from("wallets").select("user_id", { count: "exact", head: true }),
-    admin.from("deposit_tranches").select("user_id, currency, current_balance, remaining").eq("status", "locked").gt("remaining", 0),
-    admin.from("profiles").select("account_id, first_name, surname, email, phone, created_at").gte("created_at", start24h).order("created_at", { ascending: false }).limit(100),
-    admin.from("user_presence").select("user_id, last_seen_at").gte("last_seen_at", start24h).order("last_seen_at", { ascending: false }).limit(200),
-    admin.from("transactions").select("id, amount, currency, status, reference, created_at, user_id").eq("type", "deposit").gte("created_at", start24h).order("created_at", { ascending: false }).limit(100),
-    admin.from("transactions").select("amount, status").eq("type", "withdrawal").gte("created_at", start24h),
-    admin.from("profiles").select("id", { count: "exact", head: true }).gte("welcome_bonus_credited_at", start24h),
-  ]);
-
-  const activeTranches = tranchesRes.data ?? [];
-  const uniqueGrowingUsers = new Set(activeTranches.map((t) => t.user_id)).size;
-  const growingVolumeZAR = activeTranches.filter((t) => t.currency === "ZAR").reduce((sum, t) => sum + Number(t.current_balance ?? t.remaining ?? 0), 0);
-
-  const deposits = depositsRes.data ?? [];
-  const completedDepositsZAR = deposits.filter((d) => d.status === "completed" && d.currency === "ZAR").reduce((sum, d) => sum + Number(d.amount ?? 0), 0);
-
-  const withdrawals = withdrawalsRes.data ?? [];
-  const completedWithdrawalsZAR = withdrawals.filter((w) => w.status === "completed").reduce((sum, w) => sum + Number(w.amount ?? 0), 0);
-
-  const newAccounts = (newProfilesRes.data ?? []).map((p) => ({
-    name: `${p.first_name ?? ""} ${p.surname ?? ""}`.trim() || "Member",
-    accountId: p.account_id,
-    email: p.email,
-    phone: p.phone,
-  }));
-
-  const metrics = {
-    totalUsers: profilesRes.count ?? 0,
-    usersWithActiveCycles: uniqueGrowingUsers,
-    totalActiveCycles: activeTranches.length,
-    totalGrowingVolumeZAR: growingVolumeZAR,
-    activeLoggedInCount: (loggedInRes.data ?? []).length,
-    newAccountsCount: newAccounts.length,
-    newAccounts,
-    depositsCount: deposits.length,
-    depositsTotalZAR: completedDepositsZAR,
-    depositsList: deposits.map((d) => ({
-      name: "Member",
-      accountId: d.user_id?.slice(0, 8),
-      amount: d.amount,
-      currency: d.currency,
-      status: d.status,
-      reference: d.reference,
-    })),
-    withdrawalsCount: withdrawals.length,
-    withdrawalsTotalZAR: completedWithdrawalsZAR,
-    welcomeBonusCreditedCount: bonusRes.count ?? 0,
-  };
+  const collected = await admin.rpc("collect_admin_daily_activity", { p_today: today });
+  if (collected.error) throw new Error(collected.error.message);
+  if (!collected.data) throw new Error("Daily activity report returned no data");
+  const metrics = collected.data;
+  const dayStr = metrics.date;
 
   const content = dailyReportEmailContent({
     report_id: crypto.randomUUID(),
@@ -462,7 +428,9 @@ async function processDailyReportDirect(
     resendKey,
     from,
     recipientEmail,
-    `admin-daily-report/${dayStr}-${Math.floor(Date.now() / (1000 * 60 * 30))}`,
+    today
+      ? `admin-daily-report/today/${dayStr}-${Math.floor(Date.now() / (1000 * 60 * 30))}`
+      : `admin-daily-report/day/${dayStr}`,
     content,
   );
 
@@ -694,6 +662,13 @@ serve(async (request) => {
     return json({ error: "Unknown admin email notification kind" }, 400);
   }
 
+  if (kind === "daily_report" && request.headers.get("Authorization") !== `Bearer ${serviceRoleKey}`) {
+    return json({ error: "Service authorization required for report resend" }, 401);
+  }
+  if (kind === "daily_report" && body.period !== undefined && body.period !== "today" && body.period !== "previous_day") {
+    return json({ error: "period must be today or previous_day" }, 400);
+  }
+
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -717,7 +692,7 @@ serve(async (request) => {
         : kind === "approval"
           ? await processAutoApprovals(admin, resendKey, from, recipientEmail)
           : kind === "daily_report"
-            ? await processDailyReportDirect(admin, resendKey, from, recipientEmail)
+            ? await processDailyReportDirect(admin, resendKey, from, recipientEmail, body.period === "today")
             : await (async () => {
                 const maturity = await processMaturityAlert(admin, resendKey, from, recipientEmail);
                 const daily = await processDailyReportDirect(admin, resendKey, from, recipientEmail);
